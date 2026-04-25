@@ -1,0 +1,86 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Branch {
+  id        Int      @id @default(autoincrement())
+  name      String
+  region    String
+  address   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  devices   Device[]
+  users     User[]
+
+  @@map("branch")
+}
+
+model Device {
+  id             String   @id
+  name           String   @default("AI Vandalism Detection")
+  branchId       Int
+  status         String   @default("online")
+  incidentStatus String   @default("safe")
+  lat            Float
+  lng            Float
+  address        String
+  ipAddress      String?
+  province       String?
+  district       String?
+  sector         String?
+  cell           String?
+  lastData       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  branch         Branch   @relation(fields: [branchId], references: [id], map: "Device_branchId_fkey")
+
+  @@index([branchId], map: "Device_branchId_fkey")
+  @@map("device")
+}
+
+model Location {
+  id            Int    @id @default(autoincrement())
+  province_name String @db.VarChar(100)
+  district_name String @db.VarChar(100)
+  sector_name   String @db.VarChar(100)
+  cell_name     String @db.VarChar(100)
+  cell_id       Int    @default(0)
+
+  @@map("locations")
+}
+
+model User {
+  id                 Int         @id @default(autoincrement())
+  fullName           String
+  email              String      @unique(map: "User_email_key")
+  password           String
+  role               Role
+  status             UserStatus  @default(ENABLED)
+  mustChangePassword Boolean     @default(false)
+  branchId           Int?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  branch             Branch?     @relation(fields: [branchId], references: [id], map: "User_branchId_fkey")
+
+  @@index([branchId], map: "User_branchId_fkey")
+  @@map("user")
+}
+
+enum Role {
+  HQ_ADMIN
+  BRANCH_USER
+
+  @@map("user_role")
+}
+
+enum UserStatus {
+  ENABLED
+  DISABLED
+
+  @@map("user_status")
+}
