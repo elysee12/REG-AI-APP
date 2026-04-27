@@ -6,17 +6,22 @@ export class MailService {
   private transporter: nodemailer.Transporter;
 
   constructor() {
+    const port = parseInt(process.env.EMAIL_PORT || '587');
     this.transporter = nodemailer.createTransport({
       host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-      port: parseInt(process.env.EMAIL_PORT || '587'),
-      secure: process.env.EMAIL_PORT === '465', // true for 465, false for other ports
+      port: port,
+      secure: port === 465, // true for 465, false for other ports
       auth: {
         user: process.env.SMTP_USER || '',
         pass: process.env.SMTP_PASS || '',
       },
-      connectionTimeout: 10000, // 10 seconds
-      greetingTimeout: 10000,
-      socketTimeout: 10000,
+      connectionTimeout: 20000,
+      greetingTimeout: 20000,
+      socketTimeout: 20000,
+      tls: {
+        rejectUnauthorized: false,
+        minVersion: 'TLSv1.2',
+      },
     });
   }
 
@@ -107,14 +112,19 @@ export class MailService {
     `);
 
     try {
+      console.log(`Attempting to send password reset email to ${to}...`);
       await this.transporter.sendMail({
         from: `"REG AI" <${process.env.SMTP_USER || 'noreply@regai.com'}>`,
         to,
         subject: 'REG AI - Password Reset Verification Code',
         html,
       });
+      console.log(`Password reset email successfully sent to ${to}`);
     } catch (error) {
-      console.error(`Failed to send password reset email to ${to}:`, error.message);
+      console.error(`Failed to send password reset email to ${to}. Error: ${error.message}`);
+      if (error.code === 'ETIMEDOUT') {
+        console.error('Connection timed out. This may be due to network issues or blocked SMTP ports.');
+      }
       throw error; // Rethrow for reset since it's a critical action
     }
   }
@@ -141,4 +151,109 @@ export class MailService {
       console.error(`Failed to send password change confirmation to ${to}:`, error.message);
     }
   }
+
+  async sendIncidentAlertEmail(to: string, contactName: string, incident: any): Promise<void> {
+    const mapLink = `https://www.google.com/maps?q=${incident.device.lat},${incident.device.lng}`;
+    
+    const html = this.getHtmlContent(`
+      <h2 style="color: #EF1C25; margin: 0 0 24px; font-size: 22px; font-weight: 600;">CRITICAL: Incident Alert</h2>
+      <p style="color: #444444; margin: 0 0 20px; font-size: 15px; line-height: 1.6;">Dear <strong>${contactName}</strong>,</p>
+      <p style="color: #444444; margin: 0 0 20px; font-size: 15px; line-height: 1.6;">An incident has been detected on a device linked to your security profile. Immediate attention is required.</p>
+      
+      <div style="background-color: #f8f8f8; border-radius: 8px; padding: 20px; margin: 24px 0; border-left: 4px solid #EF1C25;">
+        <p style="margin: 0 0 12px; color: #666666; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">Incident Details</p>
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+          <tr>
+            <td style="padding: 4px 0; color: #444444; font-size: 14px;"><strong>Type:</strong></td>
+            <td style="padding: 4px 0; color: #444444; font-size: 14px; text-align: right;">${incident.type}</td>
+          </tr>
+          <tr>
+            <td style="padding: 4px 0; color: #444444; font-size: 14px;"><strong>Severity:</strong></td>
+            <td style="padding: 4px 0; color: #EF1C25; font-size: 14px; text-align: right;"><strong>${incident.severity.toUpperCase()}</strong></td>
+          </tr>
+          <tr>
+            <td style="padding: 4px 0; color: #444444; font-size: 14px;"><strong>Device:</strong></td>
+            <td style="padding: 4px 0; color: #444444; font-size: 14px; text-align: right;">${incident.device.name} (${incident.device.id})</td>
+          </tr>
+          <tr>
+            <td style="padding: 4px 0; color: #444444; font-size: 14px;"><strong>Time:</strong></td>
+            <td style="padding: 4px 0; color: #444444; font-size: 14px; text-align: right;">${new Date(incident.time).toLocaleString()}</td>
+          </tr>
+        </table>
+      </div>
+
+      <div style="background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 24px 0;">
+        <p style="margin: 0 0 12px; color: #666666; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">Location Information</p>
+        <div style="margin-bottom: 15px;">
+          <p style="margin: 0 0 5px; color: #444444; font-size: 14px;"><strong>Full Address:</strong></p>
+          <p style="margin: 0; color: #666666; font-size: 13px; line-height: 1.4;">${incident.device.address}</p>
+        </div>
+        <div style="margin-bottom: 15px;">
+          <p style="margin: 0 0 5px; color: #444444; font-size: 14px;"><strong>GPS Coordinates:</strong></p>
+          <p style="margin: 0; color: #666666; font-size: 13px; font-family: monospace;">${incident.device.lat}, ${incident.device.lng}</p>
+        </div>
+        <div style="text-align: center; margin-top: 15px;">
+          <a href="${mapLink}" style="display: inline-block; color: #EF1C25; text-decoration: none; font-weight: 600; font-size: 14px; border: 1px solid #EF1C25; padding: 8px 16px; border-radius: 4px;">View on Google Maps</a>
+        </div>
+      </div>
+
+      <div style="text-align: center; margin: 32px 0;">
+        <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard/response?incidentId=${incident.id}" style="display: inline-block; background: linear-gradient(135deg, #EF1C25 0%, #C8101A 100%); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-weight: 600; font-size: 15px;">Access Incident Dashboard</a>
+      </div>
+      
+      <p style="color: #888888; margin: 0; font-size: 13px; line-height: 1.6;">Please take immediate action as per the standard security protocol.</p>
+    `);
+
+    try {
+      await this.transporter.sendMail({
+        from: `"REG AI Alerts" <${process.env.SMTP_USER || 'alerts@regai.com'}>`,
+        to,
+        subject: `CRITICAL ALERT: ${incident.type} detected at ${incident.device.name}`,
+        html,
+      });
+    } catch (error) {
+      console.error(`Failed to send incident alert email to ${to}:`, error.message);
+    }
+  }
+
+  async sendBroadcastAlertEmail(to: string, contactName: string, message: string, incident: any): Promise<void> {
+    const mapLink = `https://www.google.com/maps?q=${incident.device.lat},${incident.device.lng}`;
+    
+    const html = this.getHtmlContent(`
+      <h2 style="color: #EF1C25; margin: 0 0 24px; font-size: 22px; font-weight: 600;">URGENT: Security Broadcast</h2>
+      <p style="color: #444444; margin: 0 0 20px; font-size: 15px; line-height: 1.6;">Dear <strong>${contactName}</strong>,</p>
+      <p style="color: #444444; margin: 0 0 20px; font-size: 15px; line-height: 1.6;">An urgent message has been broadcasted regarding an ongoing incident:</p>
+      
+      <div style="background-color: #fef2f2; border: 1px solid #fee2e2; border-radius: 8px; padding: 20px; margin: 24px 0; border-left: 4px solid #EF1C25;">
+        <p style="margin: 0; color: #1A1A1A; font-size: 16px; line-height: 1.6; font-weight: 500;">"${message}"</p>
+      </div>
+
+      <div style="background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 24px 0;">
+        <p style="margin: 0 0 12px; color: #666666; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">Location Verification</p>
+        <div style="margin-bottom: 15px;">
+          <p style="margin: 0 0 5px; color: #444444; font-size: 14px;"><strong>Coordinates:</strong></p>
+          <p style="margin: 0; color: #666666; font-size: 13px; font-family: monospace;">${incident.device.lat}, ${incident.device.lng}</p>
+        </div>
+        <div style="text-align: center; margin-top: 15px;">
+          <a href="${mapLink}" style="display: inline-block; color: #EF1C25; text-decoration: none; font-weight: 600; font-size: 14px; border: 1px solid #EF1C25; padding: 8px 16px; border-radius: 4px;">View Live Location on Map</a>
+        </div>
+      </div>
+
+      <div style="text-align: center; margin: 32px 0;">
+        <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard/response?incidentId=${incident.id}" style="display: inline-block; background: linear-gradient(135deg, #EF1C25 0%, #C8101A 100%); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-weight: 600; font-size: 15px;">Open Response Dashboard</a>
+      </div>
+    `);
+
+    try {
+      await this.transporter.sendMail({
+        from: `"REG AI Security" <${process.env.SMTP_USER || 'security@regai.com'}>`,
+        to,
+        subject: `URGENT BROADCAST: Incident ${incident.id.slice(0, 8).toUpperCase()}`,
+        html,
+      });
+    } catch (error) {
+      console.error(`Failed to send broadcast alert email to ${to}:`, error.message);
+    }
+  }
 }
+

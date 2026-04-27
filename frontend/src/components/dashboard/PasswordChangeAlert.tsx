@@ -21,14 +21,12 @@ export function PasswordChangeAlert() {
   const { requestPasswordChange, changePasswordWithOtp } = useDataStore();
   
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [step, setStep] = useState<'current' | 'otp' | 'password'>('current');
+  const [step, setStep] = useState<'request' | 'otp' | 'password'>('request');
   
-  const [currentPassword, setCurrentPassword] = useState("");
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   
-  const [showCurrentPwd, setShowCurrentPassword] = useState(false);
   const [showNewPwd, setShowNewPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [cooldown, setCooldown] = useState(0);
@@ -62,15 +60,11 @@ export function PasswordChangeAlert() {
     }
   }, [user?.mustChangePassword]);
 
-  const handleRequestOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentPassword) {
-      toast.error("Please enter your current password");
-      return;
-    }
-
+  const handleRequestOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    
     setIsLoading(true);
-    const data = await requestPasswordChange(currentPassword);
+    const data = await requestPasswordChange("");
     
     if (data.success) {
       toast.success("Verification code sent to your email");
@@ -78,7 +72,7 @@ export function PasswordChangeAlert() {
       setCooldown(60);
       setExpiry(600);
     } else {
-      toast.error(data.message || "Invalid current password");
+      toast.error(data.message || "Failed to send verification code");
     }
     setIsLoading(false);
   };
@@ -105,7 +99,6 @@ export function PasswordChangeAlert() {
 
     setIsLoading(true);
     const data = await changePasswordWithOtp({
-      currentPassword,
       otp,
       newPassword
     });
@@ -117,8 +110,7 @@ export function PasswordChangeAlert() {
       setIsDialogOpen(false);
       toast.success("Password updated successfully! Dashboard access restored.");
       // Reset state
-      setStep('current');
-      setCurrentPassword("");
+      setStep('request');
       setOtp("");
       setNewPassword("");
       setConfirmPassword("");
@@ -144,32 +136,22 @@ export function PasswordChangeAlert() {
         </DialogHeader>
         
         <div className="py-4">
-          {step === 'current' && (
-            <form onSubmit={handleRequestOtp} className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="current-password">Current Password</Label>
-                <div className="relative">
-                  <Input
-                    id="current-password"
-                    type={showCurrentPwd ? "text" : "password"}
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    placeholder="Enter current password"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowCurrentPassword(!showCurrentPwd)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    {showCurrentPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
+          {step === 'request' && (
+            <div className="space-y-6 py-2 text-center">
+              <div className="mx-auto h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
+                <KeyRound className="h-8 w-8 text-primary" />
               </div>
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              <div className="space-y-2">
+                <h3 className="font-semibold text-lg">Verify Your Identity</h3>
+                <p className="text-sm text-muted-foreground">
+                  To update your password, we'll send a 6-digit verification code to <br/>
+                  <span className="font-medium text-foreground">{user?.email}</span>
+                </p>
+              </div>
+              <Button onClick={() => handleRequestOtp()} className="w-full h-11" disabled={isLoading}>
                 {isLoading ? "Sending..." : "Send Verification Code"}
               </Button>
-            </form>
+            </div>
           )}
 
           {step === 'otp' && (
@@ -203,7 +185,7 @@ export function PasswordChangeAlert() {
                 </span>
                 <button
                   type="button"
-                  onClick={handleRequestOtp}
+                  onClick={() => handleRequestOtp()}
                   disabled={cooldown > 0 || isLoading}
                   className="text-primary hover:underline disabled:text-muted-foreground disabled:no-underline font-medium"
                 >
@@ -212,7 +194,7 @@ export function PasswordChangeAlert() {
               </div>
 
               <div className="flex gap-2">
-                <Button type="button" variant="outline" className="flex-1" onClick={() => setStep('current')}>Back</Button>
+                <Button type="button" variant="outline" className="flex-1" onClick={() => setStep('request')}>Back</Button>
                 <Button type="submit" className="flex-1">Verify Code</Button>
               </div>
             </form>

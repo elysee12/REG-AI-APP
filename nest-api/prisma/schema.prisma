@@ -16,6 +16,7 @@ model Branch {
   updatedAt DateTime @updatedAt
   devices   Device[]
   users     User[]
+  securityContacts SecurityContact[]
 
   @@map("branch")
 }
@@ -29,6 +30,7 @@ model Device {
   lat            Float
   lng            Float
   address        String
+
   ipAddress      String?
   province       String?
   district       String?
@@ -38,9 +40,47 @@ model Device {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   branch         Branch   @relation(fields: [branchId], references: [id], map: "Device_branchId_fkey")
+  incidents      Incident[]
+  securityContacts SecurityContact[] @relation("DeviceSecurityContacts")
 
   @@index([branchId], map: "Device_branchId_fkey")
   @@map("device")
+}
+
+model SecurityContact {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String
+  phone     String
+  branchId  Int
+  
+  address   String?
+  province  String?
+  district  String?
+  sector    String?
+  cell      String?
+  lat       Float?
+  lng       Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  branch    Branch   @relation(fields: [branchId], references: [id])
+  devices   Device[] @relation("DeviceSecurityContacts")
+
+  @@map("security_contact")
+}
+
+model Incident {
+  id        String   @id @default(uuid())
+  deviceId  String
+  type      String
+  severity  String
+  status    String   @default("active")
+  time      DateTime @default(now())
+  device    Device   @relation(fields: [deviceId], references: [id])
+
+  @@index([deviceId])
+  @@map("incident")
 }
 
 model Location {
@@ -51,6 +91,7 @@ model Location {
   cell_name     String @db.VarChar(100)
   cell_id       Int    @default(0)
 
+  @@unique([province_name, district_name, sector_name, cell_name])
   @@map("locations")
 }
 

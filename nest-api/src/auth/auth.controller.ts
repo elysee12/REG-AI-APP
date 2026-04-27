@@ -119,9 +119,12 @@ export class AuthController {
       return { success: false, message: 'User not found' };
     }
 
-    const isCurrentPasswordValid = await bcrypt.compare(dto.currentPassword, user.password);
-    if (!isCurrentPasswordValid) {
-      return { success: false, message: 'Current password is incorrect' };
+    // Current password check is now optional if OTP is valid
+    if (dto.currentPassword) {
+      const isCurrentPasswordValid = await bcrypt.compare(dto.currentPassword, user.password);
+      if (!isCurrentPasswordValid) {
+        return { success: false, message: 'Current password is incorrect' };
+      }
     }
 
     const verifyResult = await this.otpService.verifyPasswordChangeOtp(userId, dto.otp);
@@ -139,9 +142,12 @@ export class AuthController {
       return { success: false, message: 'User not found' };
     }
 
-    const isCurrentPasswordValid = await bcrypt.compare(dto.currentPassword, user.password);
-    if (!isCurrentPasswordValid) {
-      return { success: false, message: 'Current password is incorrect' };
+    // Current password check is now optional if OTP is valid
+    if (dto.currentPassword) {
+      const isCurrentPasswordValid = await bcrypt.compare(dto.currentPassword, user.password);
+      if (!isCurrentPasswordValid) {
+        return { success: false, message: 'Current password is incorrect' };
+      }
     }
 
     const verifyResult = await this.otpService.verifyPasswordChangeOtp(userId, dto.otp);

@@ -7,10 +7,20 @@ const ResponsePage = lazy(() =>
   })),
 );
 
+type ResponseSearchParams = {
+  incidentId?: string;
+};
+
 export const Route = createFileRoute("/dashboard/response")({
+  validateSearch: (search: Record<string, unknown>): ResponseSearchParams => {
+    return {
+      incidentId: (search.incidentId as string) || undefined,
+    };
+  },
   component: () => (
     <Suspense fallback={null}>
       <ResponsePage />
     </Suspense>
   ),
 });
+

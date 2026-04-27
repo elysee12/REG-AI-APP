@@ -27,6 +27,7 @@ export interface Device {
     address: string;
   };
   lastData: string;
+  securityContacts?: any[];
 }
 
 interface DataState {
@@ -74,6 +75,22 @@ interface DataState {
   }) => Promise<boolean>;
   removeDevice: (id: string) => Promise<boolean>;
 
+  incidents: any[];
+  fetchIncidents: (branchId?: string) => Promise<void>;
+  fetchIncidentById: (id: string) => Promise<any>;
+  addIncident: (incident: any) => Promise<boolean>;
+  updateIncidentStatus: (id: string, status: string) => Promise<boolean>;
+  broadcastIncidentAlert: (id: string, message: string) => Promise<boolean>;
+  broadcastWhatsappAlert: (id: string, message: string) => Promise<boolean>;
+
+  securityContacts: any[];
+  fetchSecurityContacts: (branchId?: string) => Promise<void>;
+  addSecurityContact: (contact: any) => Promise<boolean>;
+  updateSecurityContact: (id: string, contact: any) => Promise<boolean>;
+  deleteSecurityContact: (id: string) => Promise<boolean>;
+  linkContactToDevice: (contactId: string, deviceId: string) => Promise<boolean>;
+  unlinkContactFromDevice: (contactId: string, deviceId: string) => Promise<boolean>;
+
   requestPasswordReset: (email: string) => Promise<{ success: boolean; message: string }>;
   resetPassword: (payload: { email: string; otp: string; newPassword: string }) => Promise<{ success: boolean; message: string }>;
   requestPasswordChange: (currentPassword: string) => Promise<{ success: boolean; message: string }>;
@@ -97,6 +114,8 @@ export const useDataStore = create<DataState>()(
       users: [],
       branches: [],
       devices: [],
+      incidents: [],
+      securityContacts: [],
       isLoading: false,
 
       fetchUsers: async () => {
@@ -268,7 +287,8 @@ export const useDataStore = create<DataState>()(
               ...d,
               branchId: String(d.branchId),
               branchName: d.branch?.name,
-              location: { lat: d.lat, lng: d.lng, address: d.address }
+              location: { lat: d.lat, lng: d.lng, address: d.address },
+              securityContacts: d.securityContacts
             })) });
           }
         } catch (error) { console.error('Fetch devices error:', error); }
@@ -314,6 +334,184 @@ export const useDataStore = create<DataState>()(
         } catch (error) { return false; }
       },
 
+      fetchIncidents: async (branchId) => {
+        try {
+          const url = branchId 
+            ? `${API_BASE}/incidents?branchId=${branchId}` 
+            : `${API_BASE}/incidents`;
+          const response = await fetch(url, { headers: getHeaders() });
+          if (response.ok) {
+            const data = await response.json();
+            set({ incidents: data.map((i: any) => ({
+              ...i,
+              id: i.id,
+              location: `${i.device?.name || 'Unknown'} · ${i.device?.district || 'Unknown'}`,
+              severity: i.severity.toLowerCase(),
+              status: i.status.toLowerCase(),
+              time: i.time, // Add logic for relative time if needed
+              deviceId: i.deviceId,
+              deviceIp: i.device?.ipAddress
+            })) });
+          }
+        } catch (error) { console.error('Fetch incidents error:', error); }
+      },
+
+      fetchIncidentById: async (id) => {
+        try {
+          const response = await fetch(`${API_BASE}/incidents/${id}`, { headers: getHeaders() });
+          if (response.ok) {
+            return await response.json();
+          }
+          return null;
+        } catch (error) { 
+          console.error('Fetch incident by id error:', error);
+          return null;
+        }
+      },
+
+      addIncident: async (incident) => {
+        try {
+          const response = await fetch(`${API_BASE}/incidents`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify(incident),
+          });
+          if (response.ok) {
+            await get().fetchIncidents();
+            return true;
+          }
+          return false;
+        } catch (error) { return false; }
+      },
+
+      updateIncidentStatus: async (id, status) => {
+        try {
+          const response = await fetch(`${API_BASE}/incidents/${id}/status`, {
+            method: 'PATCH',
+            headers: getHeaders(),
+            body: JSON.stringify({ status }),
+          });
+          if (response.ok) {
+            await get().fetchIncidents();
+            return true;
+          }
+          return false;
+        } catch (error) { return false; }
+      },
+
+      broadcastIncidentAlert: async (id, message) => {
+        try {
+          const response = await fetch(`${API_BASE}/incidents/${id}/broadcast`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify({ message }),
+          });
+          return response.ok;
+        } catch (error) { 
+          console.error('Broadcast alert error:', error);
+          return false; 
+        }
+      },
+
+      broadcastWhatsappAlert: async (id, message) => {
+        try {
+          const response = await fetch(`${API_BASE}/incidents/${id}/broadcast-whatsapp`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify({ message }),
+          });
+          return response.ok;
+        } catch (error) { 
+          console.error('WhatsApp broadcast alert error:', error);
+          return false; 
+        }
+      },
+
+      fetchSecurityContacts: async (branchId) => {
+        try {
+          const url = branchId ? `${API_BASE}/security-contacts?branchId=${branchId}` : `${API_BASE}/security-contacts`;
+          const response = await fetch(url, { headers: getHeaders() });
+          if (response.ok) {
+            const data = await response.json();
+            set({ securityContacts: data });
+          }
+        } catch (error) { console.error('Fetch security contacts error:', error); }
+      },
+
+      addSecurityContact: async (contact) => {
+        try {
+          const response = await fetch(`${API_BASE}/security-contacts`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify(contact),
+          });
+          if (response.ok) {
+            await get().fetchSecurityContacts();
+            return true;
+          }
+          return false;
+        } catch (error) { return false; }
+      },
+
+      updateSecurityContact: async (id, contact) => {
+        try {
+          const response = await fetch(`${API_BASE}/security-contacts/${id}`, {
+            method: 'PATCH',
+            headers: getHeaders(),
+            body: JSON.stringify(contact),
+          });
+          if (response.ok) {
+            await get().fetchSecurityContacts();
+            return true;
+          }
+          return false;
+        } catch (error) { return false; }
+      },
+
+      deleteSecurityContact: async (id) => {
+        try {
+          const response = await fetch(`${API_BASE}/security-contacts/${id}`, {
+            method: 'DELETE',
+            headers: getHeaders(),
+          });
+          if (response.ok) {
+            await get().fetchSecurityContacts();
+            return true;
+          }
+          return false;
+        } catch (error) { return false; }
+      },
+
+      linkContactToDevice: async (contactId, deviceId) => {
+        try {
+          const response = await fetch(`${API_BASE}/security-contacts/${contactId}/link/${deviceId}`, {
+            method: 'POST',
+            headers: getHeaders(),
+          });
+          if (response.ok) {
+            await get().fetchSecurityContacts();
+            await get().fetchDevices();
+            return true;
+          }
+          return false;
+        } catch (error) { return false; }
+      },
+
+      unlinkContactFromDevice: async (contactId, deviceId) => {
+        try {
+          const response = await fetch(`${API_BASE}/security-contacts/${contactId}/unlink/${deviceId}`, {
+            method: 'POST',
+            headers: getHeaders(),
+          });
+          if (response.ok) {
+            await get().fetchSecurityContacts();
+            await get().fetchDevices();
+            return true;
+          }
+          return false;
+        } catch (error) { return false; }
+      },
+
       requestPasswordReset: async (email) => {
         try {
           const response = await fetch(`${API_BASE}/auth/request-password-reset`, {
@@ -342,10 +540,13 @@ export const useDataStore = create<DataState>()(
 
       requestPasswordChange: async (currentPassword) => {
         try {
+          const body: any = {};
+          if (currentPassword) body.currentPassword = currentPassword;
+          
           const response = await fetch(`${API_BASE}/auth/request-password-change`, {
             method: 'POST',
             headers: getHeaders(),
-            body: JSON.stringify({ currentPassword }),
+            body: JSON.stringify(body),
           });
           return await response.json();
         } catch (error) {

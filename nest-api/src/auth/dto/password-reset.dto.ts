@@ -33,9 +33,8 @@ export class ResetPasswordDto {
 
 export class ChangePasswordDto {
   @IsString()
-  @IsNotEmpty()
-  @MinLength(8)
-  currentPassword: string;
+  @IsOptional()
+  currentPassword?: string;
 
   @IsString()
   @IsNotEmpty()
@@ -49,14 +48,14 @@ export class ChangePasswordDto {
 
 export class RequestPasswordChangeDto {
   @IsString()
-  @IsNotEmpty()
-  currentPassword: string;
+  @IsOptional()
+  currentPassword?: string;
 }
 
 export class VerifyChangeOtpDto {
   @IsString()
-  @IsNotEmpty()
-  currentPassword: string;
+  @IsOptional()
+  currentPassword?: string;
 
   @IsString()
   @IsNotEmpty()

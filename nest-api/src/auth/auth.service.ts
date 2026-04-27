@@ -60,6 +60,7 @@ export class AuthService {
         role: user.role,
         branchName: user.branch?.name || (user.role === 'HQ_ADMIN' ? 'Headquarter' : null),
         region: user.branch?.region || (user.role === 'HQ_ADMIN' ? 'All' : null),
+        branchId: user.branchId,
         status: user.status.toLowerCase(),
         mustChangePassword: user.mustChangePassword,
       },

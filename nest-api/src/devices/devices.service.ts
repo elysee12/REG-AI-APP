@@ -10,20 +10,20 @@ export class DevicesService {
   create(createDeviceDto: CreateDeviceDto) {
     return this.prisma.device.create({
       data: createDeviceDto,
-      include: { branch: true },
+      include: { branch: true, securityContacts: true },
     });
   }
 
   findAll() {
     return this.prisma.device.findMany({
-      include: { branch: true },
+      include: { branch: true, securityContacts: true },
     });
   }
 
   findOne(id: string) {
     return this.prisma.device.findUnique({
       where: { id },
-      include: { branch: true },
+      include: { branch: true, securityContacts: true },
     });
   }
 
@@ -31,7 +31,7 @@ export class DevicesService {
     return this.prisma.device.update({
       where: { id },
       data: updateDeviceDto,
-      include: { branch: true },
+      include: { branch: true, securityContacts: true },
     });
   }
 
@@ -44,7 +44,7 @@ export class DevicesService {
   findByBranch(branchId: number) {
     return this.prisma.device.findMany({
       where: { branchId },
-      include: { branch: true },
+      include: { branch: true, securityContacts: true },
     });
   }
 }

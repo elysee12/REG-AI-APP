@@ -18,16 +18,21 @@ import {
 } from "@/components/ui/select";
 import { useDataStore, Device } from "@/lib/data";
 import { useAuthStore } from "@/lib/auth";
-import { Camera, Radio, Radar, MapPin, Trash2, Activity, Building2 } from "lucide-react";
+import { Camera, Radio, Radar, MapPin, Trash2, Activity, Building2, ShieldCheck, UserPlus, X } from "lucide-react";
+import { toast } from "sonner";
 
 export function DevicesPage() {
   const { 
     devices, 
     branches, 
+    securityContacts,
     addDevice, 
     removeDevice, 
     fetchDevices, 
     fetchBranches,
+    fetchSecurityContacts,
+    linkContactToDevice,
+    unlinkContactFromDevice,
     fetchProvinces,
     fetchDistricts,
     fetchSectors,
@@ -40,11 +45,46 @@ export function DevicesPage() {
   const [sectors, setSectors] = useState<string[]>([]);
   const [cells, setCells] = useState<string[]>([]);
 
+  const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
+  const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
+
   useEffect(() => {
     fetchDevices();
     fetchBranches();
+    fetchSecurityContacts();
     fetchProvinces().then(setProvinces);
-  }, [fetchDevices, fetchBranches, fetchProvinces]);
+  }, [fetchDevices, fetchBranches, fetchSecurityContacts, fetchProvinces]);
+
+  const handleOpenLinkDialog = (device: Device) => {
+    setSelectedDevice(device);
+    setIsLinkDialogOpen(true);
+  };
+
+  const handleLinkContact = async (contactId: string) => {
+    if (!selectedDevice) return;
+    const success = await linkContactToDevice(contactId, selectedDevice.id);
+    if (success) {
+      toast.success("Security contact linked successfully");
+      // Refresh selected device to show updated contacts
+      const updatedDevice = useDataStore.getState().devices.find(d => d.id === selectedDevice.id);
+      if (updatedDevice) setSelectedDevice(updatedDevice);
+    } else {
+      toast.error("Failed to link security contact");
+    }
+  };
+
+  const handleUnlinkContact = async (contactId: string) => {
+    if (!selectedDevice) return;
+    const success = await unlinkContactFromDevice(contactId, selectedDevice.id);
+    if (success) {
+      toast.success("Security contact unlinked");
+      // Refresh selected device
+      const updatedDevice = useDataStore.getState().devices.find(d => d.id === selectedDevice.id);
+      if (updatedDevice) setSelectedDevice(updatedDevice);
+    } else {
+      toast.error("Failed to unlink security contact");
+    }
+  };
   
   const [search, setSearch] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -167,6 +207,7 @@ export function DevicesPage() {
                 <th className="text-left px-4 py-3 font-medium">Serial Number</th>
                 <th className="text-left px-4 py-3 font-medium">Device Info</th>
                 {user?.role === "HQ_ADMIN" && <th className="text-left px-4 py-3 font-medium">Branch</th>}
+                <th className="text-left px-4 py-3 font-medium">Security Personnel</th>
                 <th className="text-left px-4 py-3 font-medium">Location & Address</th>
                 <th className="text-left px-4 py-3 font-medium">Live Status</th>
                 <th className="text-right px-4 py-3 font-medium">Actions</th>
@@ -199,6 +240,28 @@ export function DevicesPage() {
                       <div className="font-medium">{d.branchName}</div>
                     </td>
                   )}
+                  <td className="px-4 py-4">
+                    <div className="flex flex-wrap gap-1 max-w-[200px]">
+                      {d.securityContacts && d.securityContacts.length > 0 ? (
+                        d.securityContacts.map((c: any) => (
+                          <div key={c.id} className="bg-primary/5 text-primary border border-primary/20 text-[10px] px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                            <ShieldCheck className="h-2.5 w-2.5" />
+                            {c.name}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-[10px] text-muted-foreground italic">None linked</div>
+                      )}
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-5 w-5 ml-1" 
+                        onClick={() => handleOpenLinkDialog(d)}
+                      >
+                        <UserPlus className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </td>
                   <td className="px-4 py-4 max-w-[250px]">
                     <div className="flex items-start gap-1.5">
                       <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
@@ -249,6 +312,68 @@ export function DevicesPage() {
           </table>
         </div>
       </div>
+
+      <Dialog open={isLinkDialogOpen} onOpenChange={setIsLinkDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Link Security Personnel</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <p className="text-sm text-muted-foreground">
+              Select security personnel to link to device <span className="font-mono font-bold uppercase">{selectedDevice?.id}</span>.
+            </p>
+            <div className="space-y-3">
+              <Label>Linked Personnel</Label>
+              <div className="space-y-2">
+                {selectedDevice?.securityContacts && selectedDevice.securityContacts.length > 0 ? (
+                  selectedDevice.securityContacts.map((c: any) => (
+                    <div key={c.id} className="flex items-center justify-between p-2 rounded-md border border-border bg-muted/30">
+                      <div className="text-sm">
+                        <div className="font-medium">{c.name}</div>
+                        <div className="text-xs text-muted-foreground">{c.email}</div>
+                      </div>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleUnlinkContact(c.id)}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-sm text-muted-foreground italic text-center py-4 border border-dashed border-border rounded-md">
+                    No personnel linked yet.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-2 border-t border-border">
+              <Label>Available Personnel (Branch: {selectedDevice?.branchName})</Label>
+              <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                {securityContacts
+                  .filter(c => String(c.branchId) === String(selectedDevice?.branchId) && !selectedDevice?.securityContacts?.some((sc: any) => sc.id === c.id))
+                  .map((c: any) => (
+                    <div key={c.id} className="flex items-center justify-between p-2 rounded-md border border-border hover:bg-muted/30 transition-colors">
+                      <div className="text-sm">
+                        <div className="font-medium">{c.name}</div>
+                        <div className="text-xs text-muted-foreground">{c.email}</div>
+                      </div>
+                      <Button variant="outline" size="sm" onClick={() => handleLinkContact(c.id)}>
+                        Link
+                      </Button>
+                    </div>
+                  ))}
+                {securityContacts.filter(c => String(c.branchId) === String(selectedDevice?.branchId) && !selectedDevice?.securityContacts?.some((sc: any) => sc.id === c.id)).length === 0 && (
+                  <div className="text-xs text-muted-foreground text-center py-2">
+                    No other personnel available in this branch.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setIsLinkDialogOpen(false)}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">

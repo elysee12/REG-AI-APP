@@ -23,8 +23,7 @@ export function ProfilePage() {
 
   const [isEditing, setIsEditing] = useState(false);
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
-  const [passwordStep, setPasswordStep] = useState<"current" | "otp" | "new">("current");
-  const [currentPassword, setCurrentPassword] = useState("");
+  const [passwordStep, setPasswordStep] = useState<"request" | "otp" | "new">("request");
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -58,11 +57,6 @@ export function ProfilePage() {
   };
 
   const requestPasswordChange = async () => {
-    if (!currentPassword) {
-      toast.error("Please enter your current password");
-      return;
-    }
-
     setIsLoading(true);
     try {
       const response = await fetch("http://localhost:3000/api/auth/request-password-change", {
@@ -71,7 +65,7 @@ export function ProfilePage() {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`,
         },
-        body: JSON.stringify({ currentPassword }),
+        body: JSON.stringify({}),
       });
 
       const data = await response.json();
@@ -114,7 +108,6 @@ export function ProfilePage() {
           "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify({
-          currentPassword,
           otp,
         }),
       });
@@ -154,7 +147,6 @@ export function ProfilePage() {
           "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify({
-          currentPassword,
           newPassword,
           otp,
         }),
@@ -165,8 +157,7 @@ export function ProfilePage() {
       if (data.success) {
         toast.success("Password changed successfully!");
         setIsPasswordDialogOpen(false);
-        setPasswordStep("current");
-        setCurrentPassword("");
+        setPasswordStep("request");
         setOtp("");
         setNewPassword("");
         setConfirmPassword("");
@@ -182,8 +173,7 @@ export function ProfilePage() {
 
   const closePasswordDialog = () => {
     setIsPasswordDialogOpen(false);
-    setPasswordStep("current");
-    setCurrentPassword("");
+    setPasswordStep("request");
     setOtp("");
     setNewPassword("");
     setConfirmPassword("");
@@ -309,32 +299,29 @@ export function ProfilePage() {
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>
-              {passwordStep === "current" && "Change Password"}
+              {passwordStep === "request" && "Change Password"}
               {passwordStep === "otp" && "Enter Verification Code"}
               {passwordStep === "new" && "Create New Password"}
             </DialogTitle>
           </DialogHeader>
 
           <div className="py-4">
-            {passwordStep === "current" && (
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Enter your current password to begin the password change process. A verification code will be sent to your email.
-                </p>
+            {passwordStep === "request" && (
+              <div className="space-y-6 text-center py-2">
+                <div className="mx-auto h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
+                  <KeyRound className="h-8 w-8 text-primary" />
+                </div>
                 <div className="space-y-2">
-                  <Label htmlFor="current-password">Current Password</Label>
-                  <Input
-                    id="current-password"
-                    type="password"
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    placeholder="Enter current password"
-                  />
+                  <h3 className="font-semibold text-lg">Verify Your Identity</h3>
+                  <p className="text-sm text-muted-foreground">
+                    To change your password, we'll send a 6-digit verification code to your registered email:
+                  </p>
+                  <p className="font-medium text-foreground">{user?.email}</p>
                 </div>
                 <Button
                   onClick={requestPasswordChange}
-                  className="w-full"
-                  disabled={isLoading || !currentPassword}
+                  className="w-full h-11"
+                  disabled={isLoading}
                 >
                   {isLoading ? "Sending..." : "Send Verification Code"}
                 </Button>

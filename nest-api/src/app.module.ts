@@ -8,9 +8,12 @@ import { DevicesModule } from './devices/devices.module';
 import { AuthModule } from './auth/auth.module';
 import { MailModule } from './mail/mail.module';
 import { LocationsModule } from './locations/locations.module';
+import { IncidentsModule } from './incidents/incidents.module';
+import { SecurityContactsModule } from './security-contacts/security-contacts.module';
+import { WhatsappModule } from './whatsapp/whatsapp.module';
 
 @Module({
-  imports: [PrismaModule, UsersModule, BranchesModule, DevicesModule, AuthModule, MailModule, LocationsModule],
+  imports: [PrismaModule, UsersModule, BranchesModule, DevicesModule, AuthModule, MailModule, LocationsModule, IncidentsModule, SecurityContactsModule, WhatsappModule],
   controllers: [AppController],
   providers: [AppService],
 })

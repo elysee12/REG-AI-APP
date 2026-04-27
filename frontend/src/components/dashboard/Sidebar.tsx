@@ -12,6 +12,7 @@ import {
   Settings,
   LogOut,
   Building2,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/lib/auth";
@@ -21,6 +22,7 @@ const items = [
   { to: "/dashboard/incidents", label: "Live Incidents", icon: Siren },
   { to: "/dashboard/map", label: "Monitoring Map", icon: Map },
   { to: "/dashboard/devices", label: "Devices", icon: Camera },
+  { to: "/dashboard/security-contacts", label: "Security Contacts", icon: ShieldCheck },
   { to: "/dashboard/queue", label: "Incident Queue", icon: ListChecks },
   { to: "/dashboard/response", label: "Response Actions", icon: Send },
   { to: "/dashboard/reports", label: "Reports", icon: FileBarChart },

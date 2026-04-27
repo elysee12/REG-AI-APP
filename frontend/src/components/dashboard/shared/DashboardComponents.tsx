@@ -1,4 +1,19 @@
 import { useDataStore } from "@/lib/data";
+import { GoogleMap, useJsApiLoader, Marker, InfoWindow, MarkerClusterer } from '@react-google-maps/api';
+import { useMemo, useState, useCallback, useEffect } from "react";
+import { MapContainer, TileLayer, Marker as LeafletMarker, Popup, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import { AlertCircle, ExternalLink } from "lucide-react";
+
+// Fix Leaflet icon issue
+// @ts-ignore
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
 
 export function Kpi({ icon: Icon, label, value, trend, tone = "default" }: {
   icon: React.ComponentType<{ className?: string }>;
@@ -67,6 +82,41 @@ export function QuickAction({ icon: Icon, label }: { icon: React.ComponentType<{
   );
 }
 
+const GOOGLE_MAPS_API_KEY = "AIzaSyChDaeqV0Ou4ZnPc0ELiabzbO6_OEQnd8w";
+
+const mapContainerStyle = {
+  width: '100%',
+  height: '100%'
+};
+
+const center = {
+  lat: -1.9441,
+  lng: 30.0619
+};
+
+const mapOptions = {
+  disableDefaultUI: false,
+  zoomControl: true,
+  mapTypeControl: false,
+  streetViewControl: false,
+  fullscreenControl: true,
+  styles: [
+    { featureType: "all", elementType: "geometry", stylers: [{ color: "#242f3e" }] },
+    { featureType: "all", elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
+    { featureType: "all", elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
+    { featureType: "water", elementType: "geometry", stylers: [{ color: "#17263c" }] },
+  ]
+};
+
+// Leaflet specific helper to update map view
+function MapResizer({ center, zoom }: { center: [number, number], zoom: number }) {
+  const map = useMap();
+  useEffect(() => {
+    map.setView(center, zoom);
+  }, [center, zoom, map]);
+  return null;
+}
+
 export function MiniMap({ 
   items = [], 
   type = 'device',
@@ -80,118 +130,230 @@ export function MiniMap({
   onMarkerClick?: (item: any) => void,
   selectedId?: string
 }) {
-  const getXY = (lat: number, lng: number) => {
-    const x = 10 + ((lng - 28.8) / (30.9 - 28.8)) * 80;
-    const y = 10 + ((lat - (-1.0)) / ((-2.9) - (-1.0))) * 60;
-    return { x, y };
-  };
-
-  const selectedItem = selectedId ? items.find(item => item.id === selectedId) : null;
-  const selectedPos = selectedItem ? getXY(selectedItem.location.lat, selectedItem.location.lng) : null;
-
-  let displayMarkers = items.map(item => {
-    const location = item.location || { lat: -1.9441, lng: 30.0619 };
-    const { x, y } = getXY(location.lat, location.lng);
-    
-    let tone: 'success' | 'critical' = 'success';
-    if (type === 'device') {
-      tone = item.incidentStatus === 'vandalism' ? 'critical' : 'success';
-    } else if (type === 'branch') {
-      tone = item.hasIncident ? 'critical' : 'success';
-    }
-
-    return { ...item, x, y, tone };
+  const [useFallback, setUseFallback] = useState(false);
+  const { isLoaded, loadError } = useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: GOOGLE_MAPS_API_KEY
   });
 
-  if (isClustered) {
-    const clusters: any[] = [];
-    const radius = 6;
+  const [map, setMap] = useState<google.maps.Map | null>(null);
+  const [activeMarker, setActiveMarker] = useState<string | null>(null);
 
-    displayMarkers.forEach(marker => {
-      let foundCluster = clusters.find(c => {
-        const dist = Math.sqrt(Math.pow(c.x - marker.x, 2) + Math.pow(c.y - marker.y, 2));
-        return dist < radius;
+  // Detect billing or loading errors
+  useEffect(() => {
+    if (loadError) setUseFallback(true);
+  }, [loadError]);
+
+  const onLoad = useCallback((map: google.maps.Map) => {
+    const bounds = new window.google.maps.LatLngBounds();
+    items.forEach(item => {
+      bounds.extend({
+        lat: item.location?.lat || center.lat,
+        lng: item.location?.lng || center.lng
       });
-
-      if (foundCluster) {
-        foundCluster.count++;
-        if (marker.tone === 'critical') foundCluster.tone = 'critical';
-        foundCluster.items.push(marker);
-      } else {
-        clusters.push({
-          x: marker.x,
-          y: marker.y,
-          count: 1,
-          tone: marker.tone,
-          items: [marker],
-          isCluster: true
-        });
-      }
     });
-    displayMarkers = clusters;
+    if (items.length > 0) {
+      map.fitBounds(bounds);
+    }
+    setMap(map);
+  }, [items]);
+
+  const onUnmount = useCallback(() => {
+    setMap(null);
+  }, []);
+
+  // Update center when selectedId changes
+  useEffect(() => {
+    if (map && selectedId) {
+      const selectedItem = items.find(i => i.id === selectedId);
+      if (selectedItem) {
+        map.panTo({
+          lat: selectedItem.location.lat,
+          lng: selectedItem.location.lng
+        });
+        map.setZoom(15);
+      }
+    }
+  }, [map, selectedId, items]);
+
+  const selectedItem = selectedId ? items.find(i => i.id === selectedId) : null;
+  const currentCenter: [number, number] = selectedItem 
+    ? [selectedItem.location.lat, selectedItem.location.lng] 
+    : [center.lat, center.lng];
+  const currentZoom = selectedId ? 15 : 9;
+
+  // Fallback Leaflet Map
+  if (useFallback || loadError) {
+    return (
+      <div className="relative w-full h-[400px] rounded-lg overflow-hidden border border-border shadow-inner bg-secondary/20">
+        <MapContainer 
+          center={currentCenter} 
+          zoom={currentZoom} 
+          style={{ height: '100%', width: '100%', background: '#1a1a1a' }}
+          zoomControl={false}
+        >
+          <TileLayer
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          />
+          <MapResizer center={currentCenter} zoom={currentZoom} />
+          {items.map((item) => (
+            <LeafletMarker 
+              key={item.id} 
+              position={[item.location?.lat || center.lat, item.location?.lng || center.lng]}
+              eventHandlers={{
+                click: () => onMarkerClick?.(item),
+              }}
+            >
+              <Popup>
+                <div className="p-1">
+                  <div className="font-bold text-sm text-black">{item.name || item.id}</div>
+                  <div className="text-xs text-gray-600 mt-1">{item.location.address}</div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className={`h-2 w-2 rounded-full ${(type === 'device' ? item.incidentStatus === 'vandalism' : item.hasIncident) ? 'bg-red-500' : 'bg-green-500'}`} />
+                    <span className="text-[10px] font-medium uppercase">
+                      {(type === 'device' ? item.incidentStatus === 'vandalism' : item.hasIncident) ? 'Critical Alert' : 'Secure'}
+                    </span>
+                  </div>
+                </div>
+              </Popup>
+            </LeafletMarker>
+          ))}
+        </MapContainer>
+
+        {/* Billing Warning Overlay */}
+        <div className="absolute top-4 left-4 right-4 z-[1000] animate-in fade-in slide-in-from-top-2 duration-500">
+          <div className="bg-destructive/90 backdrop-blur-md text-destructive-foreground px-4 py-3 rounded-lg border border-white/20 shadow-2xl flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-bold">Google Maps Billing Required</p>
+              <p className="text-[11px] opacity-90 leading-tight mt-0.5">
+                The map is currently using OpenStreetMap fallback because billing is not enabled for your Google Cloud Project.
+              </p>
+            </div>
+            <a 
+              href="https://console.cloud.google.com/billing" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded text-[11px] font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap"
+            >
+              Enable Billing <ExternalLink className="h-3 w-3" />
+            </a>
+          </div>
+        </div>
+
+        <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between bg-card/95 backdrop-blur shadow-lg rounded-lg border border-border px-4 py-2 text-[11px] z-[1000]">
+          <div className="flex items-center gap-4">
+            <Legend color="bg-primary" label="Vandalism/Alert" />
+            <Legend color="bg-success" label="Secure/Safe" />
+          </div>
+          <span className="text-muted-foreground font-semibold italic">Using OpenStreetMap (Free Fallback)</span>
+        </div>
+      </div>
+    );
   }
 
-  return (
-    <div className="relative aspect-[4/3] bg-gradient-to-br from-secondary to-background bg-grid-pattern overflow-hidden">
-      <svg 
-        viewBox="0 0 100 80" 
-        className={`absolute inset-0 w-full h-full transition-transform duration-700 ease-in-out ${selectedPos ? 'scale-[2.5]' : 'scale-100'}`}
-        style={{ 
-          transformOrigin: selectedPos ? `${selectedPos.x}% ${selectedPos.y}%` : 'center'
-        }}
-      >
-        <path
-          d="M15 25 Q25 10 50 12 Q80 14 88 35 Q92 55 75 70 Q55 78 30 72 Q10 60 15 25 Z"
-          fill="oklch(0.92 0.02 152 / 0.4)"
-          stroke="oklch(0.6 0.15 152 / 0.5)"
-          strokeWidth="0.5"
-        />
-        {displayMarkers.map((m, i) => {
-          const isSelected = !m.isCluster && m.id === selectedId;
-          return (
-            <g 
-              key={i} 
-              className="cursor-pointer transition-opacity duration-300"
-              style={{ opacity: selectedId && !isSelected && !m.items?.some((it: any) => it.id === selectedId) ? 0.4 : 1 }}
-              onClick={() => onMarkerClick?.(m.isCluster ? m.items[0] : m)}
-            >
-              {/* Pulse effect for alerts or selection */}
-              {(m.tone === "critical" || isSelected) && (
-                <circle cx={m.x} cy={m.y} r={isSelected ? "5" : m.isCluster ? "4" : "3"} fill={
-                  m.tone === "critical" ? "oklch(0.595 0.235 27.5)" : "oklch(0.6 0.15 152)"
-                } opacity="0.2">
-                  <animate attributeName="r" values={`${isSelected ? 5 : 3};${isSelected ? 8 : 6};${isSelected ? 5 : 3}`} dur="2s" repeatCount="indefinite" />
-                </circle>
-              )}
-              
-              <circle cx={m.x} cy={m.y} r={m.isCluster ? "3.5" : isSelected ? "2.5" : "1.8"} fill={
-                m.tone === "critical" ? "oklch(0.595 0.235 27.5)"
-                  : "oklch(0.6 0.15 152)"
-              } stroke="white" strokeWidth={isSelected ? "0.5" : "0"} />
+  if (!isLoaded) return (
+    <div className="w-full h-full flex items-center justify-center bg-secondary animate-pulse">
+      <div className="text-muted-foreground text-sm">Loading Google Maps...</div>
+    </div>
+  );
 
-              {m.isCluster && m.count > 1 && (
-                <text 
-                  x={m.x} 
-                  y={m.y + 0.5} 
-                  fontSize="2.5" 
-                  fill="white" 
-                  textAnchor="middle" 
-                  alignmentBaseline="middle"
-                  className="font-bold pointer-events-none"
-                >
-                  {m.count}
-                </text>
-              )}
-            </g>
-          );
-        })}
-      </svg>
-      <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between bg-card/90 backdrop-blur rounded-md border border-border px-2.5 py-1.5 text-[11px]">
-        <div className="flex items-center gap-3">
+  return (
+    <div className="relative w-full h-full min-h-[400px]">
+      <GoogleMap
+        mapContainerStyle={mapContainerStyle}
+        center={center}
+        zoom={9}
+        onLoad={onLoad}
+        onUnmount={onUnmount}
+        options={mapOptions}
+      >
+        {isClustered ? (
+          <MarkerClusterer>
+            {(clusterer) => (
+              <>
+                {items.map((item) => (
+                  <Marker
+                    key={item.id}
+                    position={{
+                      lat: item.location?.lat || center.lat,
+                      lng: item.location?.lng || center.lng
+                    }}
+                    clusterer={clusterer}
+                    onClick={() => {
+                      onMarkerClick?.(item);
+                      setActiveMarker(item.id);
+                    }}
+                    icon={{
+                      path: window.google.maps.SymbolPath.CIRCLE,
+                      scale: 8,
+                      fillColor: (type === 'device' ? item.incidentStatus === 'vandalism' : item.hasIncident) ? "#EF1C25" : "#1E9E57",
+                      fillOpacity: 1,
+                      strokeWeight: 2,
+                      strokeColor: "#FFFFFF",
+                    }}
+                  />
+                ))}
+              </>
+            )}
+          </MarkerClusterer>
+        ) : (
+          items.map((item) => (
+            <Marker
+              key={item.id}
+              position={{
+                lat: item.location?.lat || center.lat,
+                lng: item.location?.lng || center.lng
+              }}
+              onClick={() => {
+                onMarkerClick?.(item);
+                setActiveMarker(item.id);
+              }}
+              icon={{
+                path: window.google.maps.SymbolPath.CIRCLE,
+                scale: selectedId === item.id ? 10 : 7,
+                fillColor: (type === 'device' ? item.incidentStatus === 'vandalism' : item.hasIncident) ? "#EF1C25" : "#1E9E57",
+                fillOpacity: 1,
+                strokeWeight: 2,
+                strokeColor: selectedId === item.id ? "#000000" : "#FFFFFF",
+              }}
+            />
+          ))
+        )}
+
+        {activeMarker && (
+          <InfoWindow
+            position={{
+              lat: items.find(i => i.id === activeMarker)?.location.lat || center.lat,
+              lng: items.find(i => i.id === activeMarker)?.location.lng || center.lng
+            }}
+            onCloseClick={() => setActiveMarker(null)}
+          >
+            <div className="p-1 min-w-[150px]">
+              <div className="font-bold text-sm text-black">
+                {items.find(i => i.id === activeMarker)?.name || items.find(i => i.id === activeMarker)?.id}
+              </div>
+              <div className="text-xs text-gray-600 mt-1">
+                {items.find(i => i.id === activeMarker)?.location.address}
+              </div>
+              <div className="mt-2 flex items-center gap-2">
+                <span className={`h-2 w-2 rounded-full ${(type === 'device' ? items.find(i => i.id === activeMarker)?.incidentStatus === 'vandalism' : items.find(i => i.id === activeMarker)?.hasIncident) ? 'bg-red-500' : 'bg-green-500'}`} />
+                <span className="text-[10px] font-medium uppercase">
+                  {(type === 'device' ? items.find(i => i.id === activeMarker)?.incidentStatus === 'vandalism' : items.find(i => i.id === activeMarker)?.hasIncident) ? 'Critical Alert' : 'Secure'}
+                </span>
+              </div>
+            </div>
+          </InfoWindow>
+        )}
+      </GoogleMap>
+      
+      <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between bg-card/95 backdrop-blur shadow-lg rounded-lg border border-border px-4 py-2 text-[11px] z-10">
+        <div className="flex items-center gap-4">
           <Legend color="bg-primary" label="Vandalism/Alert" />
           <Legend color="bg-success" label="Secure/Safe" />
         </div>
-        <span className="text-muted-foreground font-medium">{items.length} {type === 'device' ? 'units' : 'branches'} listed</span>
+        <span className="text-muted-foreground font-semibold">{items.length} {type === 'device' ? 'units' : 'branches'} on map</span>
       </div>
     </div>
   );

@@ -65,10 +65,12 @@ export class UsersController {
       throw new UnauthorizedException('Admin not found');
     }
 
-    // 1. Verify Admin Password
-    const isCurrentPasswordValid = await bcrypt.compare(dto.adminCurrentPassword, admin.password);
-    if (!isCurrentPasswordValid) {
-      throw new BadRequestException('Invalid admin password');
+    // 1. Verify Admin Password (Optional if OTP is valid)
+    if (dto.adminCurrentPassword) {
+      const isCurrentPasswordValid = await bcrypt.compare(dto.adminCurrentPassword, admin.password);
+      if (!isCurrentPasswordValid) {
+        throw new BadRequestException('Invalid admin password');
+      }
     }
 
     // 2. Verify OTP

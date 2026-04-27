@@ -9,6 +9,7 @@ export interface User {
   email: string;
   password?: string;
   role: Role;
+  branchId?: number;
   branchName: string;
   region: string;
   status: 'enabled' | 'disabled';
