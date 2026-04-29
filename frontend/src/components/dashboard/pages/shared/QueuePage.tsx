@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SeverityPill, StatusPill } from "../../shared/DashboardComponents";
-import { Download, Filter, Search, X, Camera, MapPin, ShieldCheck, Clock, ExternalLink } from "lucide-react";
+import { Download, Filter, Search, X, Camera, MapPin, ShieldCheck, Clock, ExternalLink, Video, Image as ImageIcon, Activity, AlertTriangle } from "lucide-react";
 import { useDataStore } from "@/lib/data";
 import { useAuthStore } from "@/lib/auth";
 import { useEffect, useState, useMemo } from "react";
@@ -129,8 +129,9 @@ export function QueuePage() {
                 <th className="px-4 py-2.5 w-10"><Checkbox /></th>
                 <th className="text-left px-4 py-2.5 font-medium">Priority</th>
                 <th className="text-left px-4 py-2.5 font-medium">ID</th>
+                <th className="text-left px-4 py-2.5 font-medium">AI Detection</th>
+                <th className="text-left px-4 py-2.5 font-medium">Confidence</th>
                 <th className="text-left px-4 py-2.5 font-medium">Site</th>
-                <th className="text-left px-4 py-2.5 font-medium">Category</th>
                 <th className="text-left px-4 py-2.5 font-medium">Detected</th>
                 <th className="text-left px-4 py-2.5 font-medium">Status</th>
                 <th className="text-right px-4 py-2.5 font-medium">Actions</th>
@@ -143,12 +144,22 @@ export function QueuePage() {
                     <td className="px-4 py-3"><Checkbox /></td>
                     <td className="px-4 py-3"><PriorityBadge severity={r.severity} /></td>
                     <td className="px-4 py-3 font-mono text-xs font-bold text-primary">{r.id.split('-')[0]}</td>
-                    <td className="px-4 py-3 font-medium truncate max-w-[200px]">{r.location}</td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        {r.type} <SeverityPill level={r.severity} />
-                      </div>
+                      <AiClassBadge aiClass={r.aiClass} />
                     </td>
+                    <td className="px-4 py-3">
+                      {r.aiConfidence ? (
+                        <span className={`text-xs font-bold ${
+                          r.aiConfidence >= 0.8 ? 'text-primary' : 
+                          r.aiConfidence >= 0.5 ? 'text-warning' : 'text-muted-foreground'
+                        }`}>
+                          {(r.aiConfidence * 100).toFixed(0)}%
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 font-medium truncate max-w-[200px]">{r.location}</td>
                     <td className="px-4 py-3 text-muted-foreground tabular-nums">
                       {new Date(r.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </td>
@@ -167,7 +178,7 @@ export function QueuePage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center text-muted-foreground">
+                  <td colSpan={9} className="px-4 py-12 text-center text-muted-foreground">
                     <ShieldCheck className="h-12 w-12 mx-auto mb-3 opacity-20" />
                     No incidents match the current filters.
                   </td>
@@ -187,7 +198,7 @@ export function QueuePage() {
 
       {/* Detail Modal */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
@@ -205,6 +216,99 @@ export function QueuePage() {
           </DialogHeader>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+            {/* AI Detection Data */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-primary flex items-center gap-2">
+                <Activity className="h-4 w-4" /> AI Detection Analysis
+              </h3>
+              <div className="bg-secondary/40 rounded-lg p-4 space-y-3">
+                <DetailRow label="AI Classification" value={selectedIncident?.aiClass || "N/A"} />
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-muted-foreground">Confidence:</span>
+                  <span className={`font-bold ${
+                    (selectedIncident?.aiConfidence || 0) >= 0.8 ? 'text-primary' : 
+                    (selectedIncident?.aiConfidence || 0) >= 0.5 ? 'text-warning' : 'text-muted-foreground'
+                  }`}>
+                    {selectedIncident?.aiConfidence ? `${(selectedIncident.aiConfidence * 100).toFixed(1)}%` : "N/A"}
+                  </span>
+                </div>
+                <DetailRow label="Alert Status" value={selectedIncident?.alertStatus || "N/A"} />
+                <DetailRow label="Motion Status" value={selectedIncident?.motionStatus || "N/A"} />
+                <DetailRow label="Vibration Status" value={selectedIncident?.vibrationStatus || "N/A"} />
+                <DetailRow label="Acceleration" value={
+                  selectedIncident?.accelX != null 
+                    ? `X:${selectedIncident.accelX.toFixed(2)} Y:${selectedIncident?.accelY?.toFixed(2)} Z:${selectedIncident?.accelZ?.toFixed(2)}`
+                    : "N/A"
+                } />
+              </div>
+
+              {/* Media Section */}
+              <h3 className="text-sm font-bold uppercase tracking-wider text-primary flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4" /> Evidence Media
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                {selectedIncident?.imagePath ? (
+                  <div className="relative group rounded-lg overflow-hidden border border-border">
+                    <img 
+                      src={`http://localhost:3000/${selectedIncident.imagePath}`}
+                      alt="Incident capture"
+                      className="w-full h-32 object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "https://via.placeholder.com/150?text=No+Image";
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <span className="text-white text-xs font-bold">SNAPSHOT</span>
+                    </div>
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/70 px-2 py-1">
+                      <span className="text-white text-[10px] flex items-center gap-1">
+                        <ImageIcon className="h-3 w-3" /> Snapshot
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-32 rounded-lg border border-dashed border-border flex items-center justify-center bg-muted/30">
+                    <span className="text-muted-foreground text-xs">No snapshot</span>
+                  </div>
+                )}
+                
+                {selectedIncident?.videoPath ? (
+                  <div className="relative group rounded-lg overflow-hidden border border-border">
+                    <video 
+                      src={`http://localhost:3000/${selectedIncident.videoPath}`}
+                      className="w-full h-32 object-cover"
+                      muted
+                      onMouseOver={(e) => (e.target as HTMLVideoElement).play()}
+                      onMouseOut={(e) => {
+                        const v = e.target as HTMLVideoElement;
+                        v.pause();
+                        v.currentTime = 0;
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <span className="text-white text-xs font-bold flex items-center gap-1">
+                        <Video className="h-4 w-4" /> PLAY
+                      </span>
+                    </div>
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/70 px-2 py-1">
+                      <span className="text-white text-[10px] flex items-center gap-1">
+                        <Video className="h-3 w-3" /> Clip Video
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-32 rounded-lg border border-dashed border-border flex items-center justify-center bg-muted/30">
+                    <span className="text-muted-foreground text-xs">No video</span>
+                  </div>
+                )}
+              </div>
+              {selectedIncident?.sourceNote && (
+                <div className="text-xs text-muted-foreground italic px-1">
+                  Source: {selectedIncident.sourceNote}
+                </div>
+              )}
+            </div>
+
             {/* Device Info */}
             <div className="space-y-4">
               <h3 className="text-sm font-bold uppercase tracking-wider text-primary flex items-center gap-2">
@@ -238,10 +342,7 @@ export function QueuePage() {
                   )}
                 </div>
               </div>
-            </div>
 
-            {/* Security & Status */}
-            <div className="space-y-4">
               <h3 className="text-sm font-bold uppercase tracking-wider text-primary flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4" /> Security Personnel
               </h3>
@@ -295,6 +396,21 @@ function PriorityBadge({ severity }: { severity: string }) {
   };
   const config = map[severity.toLowerCase()] || map.medium;
   return <span className={`inline-flex items-center justify-center h-6 w-6 rounded-full text-[10px] font-bold ${config.class}`}>{config.label}</span>;
+}
+
+function AiClassBadge({ aiClass }: { aiClass?: string }) {
+  const map: Record<string, { label: string; class: string }> = {
+    THIEF: { label: "THIEF", class: "bg-primary/15 text-primary border-primary/30" },
+    SUSPICIOUS: { label: "SUSPICIOUS", class: "bg-warning/15 text-warning border-warning/30" },
+    NORMAL: { label: "NORMAL", class: "bg-success/15 text-success border-success/30" },
+  };
+  const config = aiClass ? map[aiClass.toUpperCase()] : null;
+  if (!config) return <span className="text-xs text-muted-foreground">-</span>;
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border uppercase ${config.class}`}>
+      {config.label}
+    </span>
+  );
 }
 
 function DetailRow({ label, value, tone }: { label: string; value: string; tone?: "success" | "critical" }) {

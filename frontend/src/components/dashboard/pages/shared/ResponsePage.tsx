@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { MessageSquare, Phone, Bell, AlertCircle, Mail, MapPin, Camera, ShieldCheck, ExternalLink, Info, Loader2, MessageCircle } from "lucide-react";
+import { MessageSquare, Phone, Bell, AlertCircle, Mail, MapPin, Camera, ShieldCheck, ExternalLink, Info, Loader2, MessageCircle, Activity, Video, Image as ImageIcon, AlertTriangle } from "lucide-react";
 import { useSearch } from "@tanstack/react-router";
 import { useDataStore } from "@/lib/data";
 import { useEffect, useState } from "react";
@@ -276,7 +276,7 @@ ${window.location.origin}/dashboard/response?incidentId=${data.id}`;
         </div>
       </div>
 
-      {/* Action history */}
+      {/* Action history & AI Detection */}
       <div className="bg-card border border-border rounded-xl shadow-card p-5 xl:col-span-1">
         <h2 className="font-semibold flex items-center gap-2 mb-4"><Bell className="h-4 w-4 text-primary" />Incident Timeline</h2>
         <div className="relative border-l border-primary/30 ml-2 space-y-6 pl-6 pb-2">
@@ -293,6 +293,107 @@ ${window.location.origin}/dashboard/response?incidentId=${data.id}`;
               <div className="text-xs text-muted-foreground leading-relaxed">{e.desc}</div>
             </div>
           ))}
+        </div>
+
+        <div className="mt-6 pt-6 border-t border-border">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-primary flex items-center gap-2 mb-3">
+            <Activity className="h-4 w-4" /> AI Detection Data
+          </h3>
+          <div className="space-y-2 text-xs">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">AI Class:</span>
+              <span className={`font-bold ${
+                incident.aiClass === 'THIEF' ? 'text-primary' :
+                incident.aiClass === 'SUSPICIOUS' ? 'text-warning' : 'text-success'
+              }`}>
+                {incident.aiClass || 'NORMAL'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Confidence:</span>
+              <span className={`font-bold ${
+                (incident.aiConfidence || 0) >= 0.8 ? 'text-primary' :
+                (incident.aiConfidence || 0) >= 0.5 ? 'text-warning' : 'text-muted-foreground'
+              }`}>
+                {incident.aiConfidence ? `${(incident.aiConfidence * 100).toFixed(1)}%` : 'N/A'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Motion:</span>
+              <span className="font-medium">{incident.motionStatus || 'N/A'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Vibration:</span>
+              <span className="font-medium">{incident.vibrationStatus || 'N/A'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Accel Status:</span>
+              <span className="font-medium">{incident.accelStatus || 'N/A'}</span>
+            </div>
+            {incident.accelX != null && (
+              <div className="flex flex-col gap-1 pt-2 border-t border-border/50">
+                <span className="text-muted-foreground">Accelerometer:</span>
+                <span className="font-mono">X:{incident.accelX.toFixed(2)} Y:{incident.accelY?.toFixed(2)} Z:{incident.accelZ?.toFixed(2)}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-6 pt-6 border-t border-border">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-primary flex items-center gap-2 mb-3">
+            <AlertTriangle className="h-4 w-4" /> Evidence Media
+          </h3>
+          <div className="grid grid-cols-2 gap-2">
+            {incident.imagePath ? (
+              <div className="relative group rounded-lg overflow-hidden border border-border">
+                <img
+                  src={`http://localhost:3000/${incident.imagePath}`}
+                  alt="Snapshot"
+                  className="w-full h-20 object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = "https://via.placeholder.com/150?text=No+Image";
+                  }}
+                />
+                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <span className="text-white text-[10px] font-bold flex items-center gap-1">
+                    <ImageIcon className="h-3 w-3" /> SNAP
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="h-20 rounded-lg border border-dashed border-border flex items-center justify-center bg-muted/30">
+                <span className="text-muted-foreground text-[10px]">No img</span>
+              </div>
+            )}
+
+            {incident.videoPath ? (
+              <div className="relative group rounded-lg overflow-hidden border border-border">
+                <video
+                  src={`http://localhost:3000/${incident.videoPath}`}
+                  className="w-full h-20 object-cover"
+                  muted
+                  onMouseOver={(e) => (e.target as HTMLVideoElement).play()}
+                  onMouseOut={(e) => {
+                    const v = e.target as HTMLVideoElement;
+                    v.pause();
+                    v.currentTime = 0;
+                  }}
+                />
+                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <span className="text-white text-[10px] font-bold flex items-center gap-1">
+                    <Video className="h-3 w-3" /> PLAY
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="h-20 rounded-lg border border-dashed border-border flex items-center justify-center bg-muted/30">
+                <span className="text-muted-foreground text-[10px]">No vid</span>
+              </div>
+            )}
+          </div>
+          {incident.sourceNote && (
+            <p className="text-[10px] text-muted-foreground italic mt-2">Source: {incident.sourceNote}</p>
+          )}
         </div>
       </div>
     </div>

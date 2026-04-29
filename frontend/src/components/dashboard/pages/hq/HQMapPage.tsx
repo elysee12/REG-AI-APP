@@ -1,150 +1,362 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useDataStore } from "@/lib/data";
+import { MiniMap, SeverityPill } from "../../shared/DashboardComponents";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { MiniMap, SeverityPill, StatusPill } from "../../shared/DashboardComponents";
-import { Filter, Search, MapPin } from "lucide-react";
-import { useDataStore } from "@/lib/data";
+import { useNavigate } from "@tanstack/react-router";
+import { 
+  Search, 
+  Filter, 
+  MapPin, 
+  ShieldAlert, 
+  Activity, 
+  Phone, 
+  Building2, 
+  CheckCircle2, 
+  Clock, 
+  ExternalLink, 
+  Radio, 
+  Battery, 
+  Zap, 
+  X, 
+  Maximize2,
+  Camera,
+  FileText,
+  Siren
+} from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export function HQMapPage() {
-  const { branches, devices } = useDataStore();
+  const navigate = useNavigate();
+  const { devices, branches, incidents, fetchDevices, fetchBranches, fetchIncidents, securityContacts, fetchSecurityContacts } = useDataStore();
   const [search, setSearch] = useState("");
-  const [isClustered, setIsClustered] = useState(false);
-  const [selectedBranch, setSelectedBranch] = useState<any>(null);
+  const [branchFilter, setBranchFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [selectedDevice, setSelectedDevice] = useState<any>(null);
 
-  // Enhance branches with incident status
-  const branchesWithStatus = useMemo(() => {
-    return branches.map(branch => {
-      const branchDevices = devices.filter(d => d.branchId === branch.id);
-      const hasIncident = branchDevices.some(d => d.incidentStatus === 'vandalism');
-      return { ...branch, hasIncident, deviceCount: branchDevices.length };
+  useEffect(() => {
+    fetchDevices();
+    fetchBranches();
+    fetchIncidents();
+    fetchSecurityContacts();
+  }, [fetchDevices, fetchBranches, fetchIncidents, fetchSecurityContacts]);
+
+  // Enhanced Device Data with Branch Info
+  const devicesWithDetails = useMemo(() => {
+    return devices.map(d => {
+      const branch = branches.find(b => b.id === d.branchId);
+      const contacts = securityContacts.filter(c => c.branchId === d.branchId);
+      const recentIncidents = incidents.filter(i => i.deviceId === d.id);
+      
+      return {
+        ...d,
+        branchName: branch?.name || "Unknown Branch",
+        securityContacts: contacts,
+        recentIncidents,
+        location: {
+          lat: d.lat,
+          lng: d.lng,
+          address: d.address
+        }
+      };
     });
-  }, [branches, devices]);
+  }, [devices, branches, securityContacts, incidents]);
 
-  const filteredBranches = branchesWithStatus.filter(b => 
-    b.name.toLowerCase().includes(search.toLowerCase())
-  );
+  // Filters
+  const filteredDevices = useMemo(() => {
+    return devicesWithDetails.filter(d => {
+      const matchesSearch = d.name.toLowerCase().includes(search.toLowerCase()) || d.id.toLowerCase().includes(search.toLowerCase());
+      const matchesBranch = branchFilter === "all" || String(d.branchId) === branchFilter;
+      const matchesStatus = statusFilter === "all" || 
+        (statusFilter === "problem" ? (d.incidentStatus === "vandalism" || d.status === "offline") : d.status === "online");
+      
+      return matchesSearch && matchesBranch && matchesStatus;
+    });
+  }, [devicesWithDetails, search, branchFilter, statusFilter]);
 
-  const handleRecenter = () => {
-    setSearch("");
-    setSelectedBranch(null);
-    setIsClustered(false);
+  // Live Incident Feed
+  const liveIncidents = useMemo(() => {
+    return incidents
+      .filter(i => i.status !== "resolved")
+      .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+      .slice(0, 10)
+      .map(i => {
+        const device = devicesWithDetails.find(d => d.id === i.deviceId);
+        return { ...i, device };
+      });
+  }, [incidents, devicesWithDetails]);
+
+  const handleMarkerClick = (device: any) => {
+    setSelectedDevice(device);
+    setSelectedId(device.id);
+    setIsDetailsOpen(true);
+  };
+
+  const handleIncidentClick = (incident: any) => {
+    if (incident.device) {
+      setSelectedId(incident.device.id);
+      setSelectedDevice(incident.device);
+      // Automatically open details for critical incidents
+      if (incident.severity === 'critical' || incident.severity === 'high') {
+        setIsDetailsOpen(true);
+      }
+    }
   };
 
   return (
-    <div className="p-4 md:p-6 grid grid-cols-1 xl:grid-cols-4 gap-4 h-[calc(100vh-4rem)]">
-      {/* Filters/Search */}
-      <aside className="bg-card border border-border rounded-xl shadow-card p-4 xl:col-span-1 overflow-y-auto">
-        <div className="flex items-center gap-2 mb-4">
-          <Search className="h-4 w-4 text-primary" />
-          <h2 className="font-semibold">Search Branches</h2>
+    <div className="flex flex-col h-[calc(100vh-6rem)] bg-secondary/10 overflow-hidden">
+      {/* Top Filter Bar */}
+      <div className="bg-card border-b border-border p-4 flex flex-wrap items-center gap-4 z-10 shadow-sm">
+        <div className="flex items-center gap-2">
+          <Activity className="h-5 w-5 text-primary" />
+          <h1 className="font-bold text-lg hidden md:block">National Monitoring</h1>
         </div>
-        
-        <div className="relative mb-6">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+
+        <div className="flex-1 max-w-md relative">
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input 
-            placeholder="Search branch name..." 
-            className="pl-9 h-10" 
+            placeholder="Search towers or IDs..." 
+            className="pl-9 h-10 bg-secondary/20"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
 
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">National Network</div>
-            {search && (
-              <button onClick={() => setSearch("")} className="text-[10px] text-primary hover:underline font-bold">Clear</button>
+        <div className="flex items-center gap-3">
+          <Select value={branchFilter} onValueChange={setBranchFilter}>
+            <SelectTrigger className="w-[180px] h-10 bg-secondary/20 border-border">
+              <Building2 className="h-4 w-4 mr-2 text-primary" />
+              <SelectValue placeholder="All Branches" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Branches</SelectItem>
+              {branches.map(b => (
+                <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[150px] h-10 bg-secondary/20 border-border">
+              <Filter className="h-4 w-4 mr-2 text-primary" />
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="online">Online Only</SelectItem>
+              <SelectItem value="problem">Problem Sites</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <div className="hidden lg:flex items-center gap-4 ml-4 text-[11px] font-bold uppercase tracking-wider">
+            <div className="flex items-center gap-1.5"><div className="h-2.5 w-2.5 rounded-full bg-success" /> Healthy</div>
+            <div className="flex items-center gap-1.5"><div className="h-2.5 w-2.5 rounded-full bg-warning" /> Problem</div>
+            <div className="flex items-center gap-1.5"><div className="h-2.5 w-2.5 rounded-full bg-primary animate-pulse" /> Active Theft</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-1 overflow-hidden">
+        {/* Central Map */}
+        <div className="flex-1 relative">
+          <MiniMap 
+            items={filteredDevices} 
+            type="device"
+            selectedId={selectedId || undefined}
+            onMarkerClick={handleMarkerClick}
+          />
+        </div>
+
+        {/* Live Incident Side Panel */}
+        <div className="w-[350px] bg-card border-l border-border flex flex-col hidden xl:flex">
+          <div className="p-4 border-b border-border bg-secondary/10 flex items-center justify-between">
+            <h2 className="font-bold flex items-center gap-2">
+              <ShieldAlert className="h-4 w-4 text-primary" />
+              Live Incident Feed
+            </h2>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-bold">LIVE</span>
+          </div>
+
+          <div className="flex-1 overflow-y-auto divide-y divide-border">
+            {liveIncidents.length > 0 ? (
+              liveIncidents.map((i) => (
+                <button
+                  key={i.id}
+                  onClick={() => handleIncidentClick(i)}
+                  className={`w-full p-4 text-left hover:bg-secondary/40 transition-colors group relative ${selectedId === i.deviceId ? 'bg-primary/5' : ''}`}
+                >
+                  <div className="flex gap-3">
+                    <div className="h-16 w-16 rounded bg-secondary/50 flex-shrink-0 overflow-hidden border border-border flex items-center justify-center relative">
+                      {i.imagePath ? (
+                        <img src={i.imagePath} alt="Theft" className="h-full w-full object-cover" />
+                      ) : (
+                        <Camera className="h-6 w-6 text-muted-foreground opacity-20" />
+                      )}
+                      <div className="absolute top-1 left-1">
+                        <SeverityPill level={i.severity} />
+                      </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold text-sm truncate">{i.device?.name || i.deviceId}</div>
+                      <div className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                        <Building2 className="h-3 w-3" /> {i.device?.branchName || "Unknown Branch"}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                        <Clock className="h-3 w-3" /> {new Date(i.time).toLocaleTimeString()}
+                      </div>
+                      <div className="mt-2 text-[10px] font-bold text-primary uppercase flex items-center gap-1">
+                        <Maximize2 className="h-3 w-3" /> Click to Locate
+                      </div>
+                    </div>
+                  </div>
+                  {i.severity === 'critical' && (
+                    <div className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-primary animate-ping" />
+                  )}
+                </button>
+              ))
+            ) : (
+              <div className="p-8 text-center text-muted-foreground italic flex flex-col items-center gap-3">
+                <CheckCircle2 className="h-8 w-8 opacity-20" />
+                <p className="text-sm">No active incidents detected across the network.</p>
+              </div>
             )}
           </div>
-          <div className="space-y-2">
-            {filteredBranches.map(branch => (
-              <button
-                key={branch.id}
-                onClick={() => setSelectedBranch(branch)}
-                className={`w-full text-left p-3 rounded-lg border transition-all ${
-                  selectedBranch?.id === branch.id 
-                    ? "bg-primary/10 border-primary shadow-sm ring-1 ring-primary/20" 
-                    : "bg-secondary/20 border-transparent hover:bg-secondary/40"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-sm">{branch.name}</span>
-                  <div className={`h-2 w-2 rounded-full ${branch.hasIncident ? 'bg-primary animate-pulse' : 'bg-success'}`} />
-                </div>
-                <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
-                  <MapPin className="h-3 w-3" />
-                  <span>{branch.region} Region</span>
-                  <span className="ml-auto">{branch.deviceCount} units</span>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      </aside>
 
-      {/* Map */}
-      <div className="xl:col-span-3 bg-card border border-border rounded-xl shadow-card flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <div>
-            <h2 className="font-semibold">National Infrastructure Map</h2>
-            <p className="text-xs text-muted-foreground">{branches.length} branches · {devices.length} AI units active</p>
-          </div>
-          <div className="flex gap-2">
-            <Button 
-              variant={isClustered ? "default" : "outline"} 
-              size="sm" 
-              className={`gap-2 ${isClustered ? "bg-primary text-primary-foreground shadow-md" : ""}`}
-              onClick={() => setIsClustered(!isClustered)}
-            >
-              <div className={`h-1.5 w-1.5 rounded-full ${isClustered ? "bg-white animate-pulse" : "bg-muted-foreground"}`} />
-              Cluster view
-            </Button>
-            <Button 
-              size="sm" 
-              variant="outline" 
-              className="gap-2 hover:bg-secondary"
-              onClick={handleRecenter}
-            >
-              <MapPin className="h-3.5 w-3.5" />
-              Recenter Map
+          <div className="p-4 bg-secondary/10 border-t border-border">
+            <Button variant="outline" className="w-full text-xs font-bold gap-2" onClick={() => navigate({ to: '/dashboard/reports' })}>
+              <FileText className="h-4 w-4" /> GENERATE NATIONAL REPORT
             </Button>
           </div>
         </div>
-        <div className="flex-1 grid grid-rows-[1fr_auto]">
-          <div className="relative">
-            <MiniMap 
-              items={filteredBranches} 
-              type="branch" 
-              isClustered={isClustered}
-              onMarkerClick={setSelectedBranch}
-              selectedId={selectedBranch?.id}
-            />
-          </div>
-          {/* Bottom detail card */}
-          {selectedBranch && (
-            <div className="border-t border-border p-4 bg-secondary/40 animate-in slide-in-from-bottom-2 duration-300">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    {selectedBranch.hasIncident ? (
-                      <SeverityPill level="critical" />
-                    ) : (
-                      <StatusPill status="resolved" />
-                    )}
-                    <span className="font-mono text-xs text-muted-foreground">BR-{selectedBranch.id}</span>
-                  </div>
-                  <h3 className="mt-1 font-semibold">{selectedBranch.name}</h3>
-                  <p className="text-xs text-muted-foreground">{selectedBranch.address}</p>
+      </div>
+
+      {/* Device Details Modal */}
+      <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+        <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden border-none shadow-2xl bg-card">
+          <div className="h-2 bg-primary" />
+          
+          <div className="p-6">
+            <div className="flex items-start justify-between mb-6">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className={`h-2.5 w-2.5 rounded-full ${selectedDevice?.status === 'online' ? 'bg-success' : 'bg-warning'}`} />
+                  <span className="font-mono text-xs text-muted-foreground uppercase tracking-widest">{selectedDevice?.id}</span>
                 </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => window.location.href='/dashboard/branches'}>Manage Branch</Button>
-                  <Button size="sm" onClick={() => setSelectedBranch(null)}>Close</Button>
+                <DialogTitle className="text-2xl font-bold">{selectedDevice?.name}</DialogTitle>
+                <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-1">
+                  <MapPin className="h-3.5 w-3.5" /> {selectedDevice?.location?.address}
+                </p>
+              </div>
+              <div className="text-right">
+                <div className="px-3 py-1 rounded bg-secondary/50 border border-border">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase">Branch</p>
+                  <p className="font-bold text-primary">{selectedDevice?.branchName}</p>
                 </div>
               </div>
             </div>
-          )}
-        </div>
-      </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Live Stream View */}
+              <div className="space-y-4">
+                <div className="aspect-video bg-black rounded-xl overflow-hidden border border-border relative flex items-center justify-center group">
+                  {selectedDevice?.ipAddress ? (
+                    <iframe 
+                      src={`http://${selectedDevice.ipAddress}:5000/api/live-stream`} 
+                      className="w-full h-full border-0"
+                      title="Tower Live Stream"
+                    />
+                  ) : (
+                    <div className="text-center p-4">
+                      <Radio className="h-8 w-8 text-white/20 mx-auto mb-2" />
+                      <p className="text-xs text-white/50 italic">Live Feed Offline</p>
+                    </div>
+                  )}
+                  <div className="absolute top-3 left-3 px-2 py-0.5 rounded bg-primary/90 text-white text-[10px] font-bold flex items-center gap-1.5">
+                    <div className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" /> LIVE STREAM
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-secondary/30 p-3 rounded-lg border border-border/50">
+                    <div className="flex items-center gap-1.5 text-muted-foreground text-[10px] font-bold uppercase mb-1">
+                      <Battery className="h-3 w-3" /> Battery
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold">92%</span>
+                      <div className="h-1.5 w-12 bg-secondary rounded-full overflow-hidden">
+                        <div className="h-full bg-success w-[92%]" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-secondary/30 p-3 rounded-lg border border-border/50">
+                    <div className="flex items-center gap-1.5 text-muted-foreground text-[10px] font-bold uppercase mb-1">
+                      <Zap className="h-3 w-3" /> Connectivity
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold">4G/LTE</span>
+                      <Activity className="h-3.5 w-3.5 text-success" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Security Contacts & Response */}
+              <div className="space-y-6">
+                <section>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                    <ShieldAlert className="h-4 w-4 text-primary" /> Branch Security Team
+                  </h3>
+                  <div className="space-y-2">
+                    {selectedDevice?.securityContacts?.length > 0 ? (
+                      selectedDevice.securityContacts.map((c: any) => (
+                        <div key={c.id} className="p-3 rounded-lg bg-secondary/30 border border-border flex items-center justify-between group hover:border-primary/30 transition-colors">
+                          <div>
+                            <p className="font-bold text-sm">{c.name}</p>
+                            <p className="text-[11px] text-muted-foreground">{c.phone}</p>
+                          </div>
+                          <a href={`tel:${c.phone}`} className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary hover:text-white transition-all">
+                            <Phone className="h-4 w-4" />
+                          </a>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-muted-foreground italic p-4 bg-secondary/20 rounded-lg text-center">No emergency contacts listed for this branch.</p>
+                    )}
+                  </div>
+                </section>
+
+                <div className="space-y-3">
+                  <Button className="w-full font-bold h-11 shadow-elevated gap-2">
+                    <Siren className="h-4 w-4" /> INITIATE EMERGENCY DISPATCH
+                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" className="flex-1 text-xs" onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${selectedDevice?.location?.lat},${selectedDevice?.location?.lng}`, '_blank')}>
+                      <ExternalLink className="h-3.5 w-3.5 mr-2" /> GOOGLE MAPS
+                    </Button>
+                    <Button variant="ghost" className="h-11 px-4" onClick={() => setIsDetailsOpen(false)}>
+                      <X className="h-5 w-5" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

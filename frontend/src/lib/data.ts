@@ -53,6 +53,8 @@ interface DataState {
   
   fetchBranches: () => Promise<void>;
   addBranch: (branch: Omit<Branch, 'id'>) => Promise<boolean>;
+  updateBranch: (id: string, updates: Partial<Branch>) => Promise<boolean>;
+  deleteBranch: (id: string) => Promise<boolean>;
   
   fetchProvinces: () => Promise<string[]>;
   fetchDistricts: (province: string) => Promise<string[]>;
@@ -76,7 +78,7 @@ interface DataState {
   removeDevice: (id: string) => Promise<boolean>;
 
   incidents: any[];
-  fetchIncidents: (branchId?: string) => Promise<void>;
+  fetchIncidents: (branchId?: string, deviceId?: string) => Promise<void>;
   fetchIncidentById: (id: string) => Promise<any>;
   addIncident: (incident: any) => Promise<boolean>;
   updateIncidentStatus: (id: string, status: string) => Promise<boolean>;
@@ -246,6 +248,35 @@ export const useDataStore = create<DataState>()(
         } catch (error) { return false; }
       },
 
+      updateBranch: async (id, updates) => {
+        try {
+          const response = await fetch(`${API_BASE}/branches/${id}`, {
+            method: 'PATCH',
+            headers: getHeaders(),
+            body: JSON.stringify(updates),
+          });
+          if (response.ok) {
+            await get().fetchBranches();
+            return true;
+          }
+          return false;
+        } catch (error) { return false; }
+      },
+
+      deleteBranch: async (id) => {
+        try {
+          const response = await fetch(`${API_BASE}/branches/${id}`, {
+            method: 'DELETE',
+            headers: getHeaders(),
+          });
+          if (response.ok) {
+            await get().fetchBranches();
+            return true;
+          }
+          return false;
+        } catch (error) { return false; }
+      },
+
       fetchProvinces: async () => {
         try {
           const response = await fetch(`${API_BASE}/locations/provinces`, { headers: getHeaders() });
@@ -256,7 +287,7 @@ export const useDataStore = create<DataState>()(
 
       fetchDistricts: async (province) => {
         try {
-          const response = await fetch(`${API_BASE}/locations/districts?province=${province}`, { headers: getHeaders() });
+          const response = await fetch(`${API_BASE}/locations/districts?province=${encodeURIComponent(province)}`, { headers: getHeaders() });
           if (response.ok) return await response.json();
           return [];
         } catch (error) { return []; }
@@ -264,7 +295,7 @@ export const useDataStore = create<DataState>()(
 
       fetchSectors: async (province, district) => {
         try {
-          const response = await fetch(`${API_BASE}/locations/sectors?province=${province}&district=${district}`, { headers: getHeaders() });
+          const response = await fetch(`${API_BASE}/locations/sectors?province=${encodeURIComponent(province)}&district=${encodeURIComponent(district)}`, { headers: getHeaders() });
           if (response.ok) return await response.json();
           return [];
         } catch (error) { return []; }
@@ -272,7 +303,7 @@ export const useDataStore = create<DataState>()(
 
       fetchCells: async (province, district, sector) => {
         try {
-          const response = await fetch(`${API_BASE}/locations/cells?province=${province}&district=${district}&sector=${sector}`, { headers: getHeaders() });
+          const response = await fetch(`${API_BASE}/locations/cells?province=${encodeURIComponent(province)}&district=${encodeURIComponent(district)}&sector=${encodeURIComponent(sector)}`, { headers: getHeaders() });
           if (response.ok) return await response.json();
           return [];
         } catch (error) { return []; }
@@ -334,21 +365,26 @@ export const useDataStore = create<DataState>()(
         } catch (error) { return false; }
       },
 
-      fetchIncidents: async (branchId) => {
+      fetchIncidents: async (branchId, deviceId) => {
         try {
-          const url = branchId 
-            ? `${API_BASE}/incidents?branchId=${branchId}` 
-            : `${API_BASE}/incidents`;
+          let url = `${API_BASE}/incidents`;
+          const params = new URLSearchParams();
+          if (deviceId) params.append('deviceId', deviceId);
+          else if (branchId) params.append('branchId', branchId);
+          
+          if (params.toString()) url += `?${params.toString()}`;
+          
           const response = await fetch(url, { headers: getHeaders() });
           if (response.ok) {
             const data = await response.json();
             set({ incidents: data.map((i: any) => ({
               ...i,
               id: i.id,
+              branchId: i.device?.branchId || i.branchId, // Ensure branchId is captured from the nested device
               location: `${i.device?.name || 'Unknown'} · ${i.device?.district || 'Unknown'}`,
               severity: i.severity.toLowerCase(),
               status: i.status.toLowerCase(),
-              time: i.time, // Add logic for relative time if needed
+              time: i.time,
               deviceId: i.deviceId,
               deviceIp: i.device?.ipAddress
             })) });

@@ -18,7 +18,8 @@ import {
 } from "@/components/ui/select";
 import { useDataStore, Device } from "@/lib/data";
 import { useAuthStore } from "@/lib/auth";
-import { Camera, Radio, Radar, MapPin, Trash2, Activity, Building2, ShieldCheck, UserPlus, X } from "lucide-react";
+import { SeverityPill, StatusPill } from "../../shared/DashboardComponents";
+import { Camera, Radio, Radar, MapPin, Trash2, Activity, Building2, ShieldCheck, UserPlus, X, Clock, Shield, ExternalLink, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 
 export function DevicesPage() {
@@ -38,6 +39,8 @@ export function DevicesPage() {
     fetchSectors,
     fetchCells
   } = useDataStore();
+  const incidents = useDataStore((state) => state.incidents);
+  const fetchIncidents = useDataStore((state) => state.fetchIncidents);
   const user = useAuthStore((state) => state.user);
   
   const [provinces, setProvinces] = useState<string[]>([]);
@@ -46,6 +49,7 @@ export function DevicesPage() {
   const [cells, setCells] = useState<string[]>([]);
 
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
+  const [isDetectionDialogOpen, setIsDetectionDialogOpen] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
 
   useEffect(() => {
@@ -58,6 +62,29 @@ export function DevicesPage() {
   const handleOpenLinkDialog = (device: Device) => {
     setSelectedDevice(device);
     setIsLinkDialogOpen(true);
+  };
+
+  const handleOpenDetectionDialog = (device: Device) => {
+    setSelectedDevice(device);
+    fetchIncidents(undefined, device.id);
+    setIsDetectionDialogOpen(true);
+  };
+
+  const getRelativeTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / 60000);
+    
+    if (diffInMinutes < 1) return "Just now";
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+    return date.toLocaleDateString();
+  };
+
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   const handleLinkContact = async (contactId: string) => {
@@ -296,7 +323,14 @@ export function DevicesPage() {
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     ) : (
-                      <Button size="sm" variant="outline" className="text-xs h-8">View Detection Data</Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="text-xs h-8"
+                        onClick={() => handleOpenDetectionDialog(d)}
+                      >
+                        View Detection Data
+                      </Button>
                     )}
                   </td>
                 </tr>
@@ -371,6 +405,195 @@ export function DevicesPage() {
           </div>
           <DialogFooter>
             <Button onClick={() => setIsLinkDialogOpen(false)}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDetectionDialogOpen} onOpenChange={setIsDetectionDialogOpen}>
+        <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="border-b border-border pb-4 mb-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <SeverityPill level={selectedDevice?.incidentStatus === 'vandalism' ? 'high' : 'low'} />
+                <span className="font-mono text-xs text-muted-foreground uppercase tracking-wider">{selectedDevice?.id}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${selectedDevice?.status === 'online' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>
+                  {selectedDevice?.status}
+                </span>
+              </div>
+            </div>
+            <DialogTitle className="text-2xl font-bold mt-2">
+              {selectedDevice?.name}
+              <p className="text-sm font-normal text-muted-foreground mt-1 italic">
+                {selectedDevice?.incidentStatus === 'vandalism' 
+                  ? "Recent incident activity detected at this site."
+                  : "Unit is secure and monitoring live signals."}
+              </p>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Left Column: AI Detection & Evidence */}
+            <div className="space-y-6">
+              <section>
+                <h3 className="text-sm font-bold uppercase tracking-wider text-primary flex items-center gap-2 mb-3">
+                  <Activity className="h-4 w-4" /> AI Detection Analysis
+                </h3>
+                <div className="bg-secondary/40 rounded-lg p-4 space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">AI Classification:</span>
+                    <span className="font-semibold capitalize">{selectedDevice?.incidentStatus || 'normal'}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Confidence:</span>
+                    <span className="font-bold text-primary">95.0%</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Motion Status:</span>
+                    <span className="font-semibold">{selectedDevice?.status === 'online' ? 'detected' : 'offline'}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Vibration Status:</span>
+                    <span className="font-semibold">normal</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Last Telemetry:</span>
+                    <span className="font-mono text-xs">{selectedDevice?.lastData}</span>
+                  </div>
+                </div>
+              </section>
+
+              <section>
+                <h3 className="text-sm font-bold uppercase tracking-wider text-primary flex items-center gap-2 mb-3">
+                  <Camera className="h-4 w-4" /> Evidence Media
+                </h3>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="aspect-video bg-muted rounded-md flex items-center justify-center text-[10px] text-muted-foreground border border-border italic">
+                    Camera Stream Not Active
+                  </div>
+                  <div className="aspect-video bg-muted rounded-md flex items-center justify-center text-[10px] text-muted-foreground border border-border italic">
+                    AI Overlay Preview
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            {/* Right Column: Device & Location Info */}
+            <div className="space-y-6">
+              <section>
+                <h3 className="text-sm font-bold uppercase tracking-wider text-primary flex items-center gap-2 mb-3">
+                  <Radio className="h-4 w-4" /> Device Details
+                </h3>
+                <div className="bg-secondary/40 rounded-lg p-4 space-y-3 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Device ID:</span>
+                    <span className="font-mono font-bold uppercase">{selectedDevice?.id}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Device Name:</span>
+                    <span>{selectedDevice?.name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">IP Address:</span>
+                    <span className="font-mono">{selectedDevice?.ipAddress || "N/A"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Live Status:</span>
+                    <span className={selectedDevice?.status === 'online' ? "text-success font-bold" : "text-destructive font-bold"}>
+                      {selectedDevice?.status.toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+              </section>
+
+              <section>
+                <h3 className="text-sm font-bold uppercase tracking-wider text-primary flex items-center gap-2 mb-3">
+                  <MapPin className="h-4 w-4" /> Geographical Info
+                </h3>
+                <div className="bg-secondary/40 rounded-lg p-4 space-y-3 text-sm">
+                  <div>
+                    <span className="text-muted-foreground block mb-1">Full Address:</span>
+                    <span className="leading-tight">{selectedDevice?.cell}, {selectedDevice?.sector}, {selectedDevice?.district}, {selectedDevice?.province}</span>
+                  </div>
+                  <div className="flex justify-between items-center pt-2 border-t border-border/50">
+                    <span className="text-xs font-mono text-muted-foreground">
+                      {selectedDevice?.location.lat.toFixed(6)}, {selectedDevice?.location.lng.toFixed(6)}
+                    </span>
+                    <Button variant="link" size="sm" className="h-auto p-0 text-primary flex items-center gap-1" onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${selectedDevice?.location.lat},${selectedDevice?.location.lng}`, '_blank')}>
+                      MAP VIEW <ExternalLink className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              </section>
+
+              <section>
+                <h3 className="text-sm font-bold uppercase tracking-wider text-primary flex items-center gap-2 mb-3">
+                  <ShieldCheck className="h-4 w-4" /> Security Personnel
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {selectedDevice?.securityContacts && selectedDevice.securityContacts.length > 0 ? (
+                    selectedDevice.securityContacts.map((c: any) => (
+                      <div key={c.id} className="bg-muted px-2 py-1 rounded border border-border text-[11px] font-medium flex items-center gap-1.5">
+                        <Shield className="h-3 w-3 text-primary" /> {c.name}
+                      </div>
+                    ))
+                  ) : (
+                    <span className="text-xs text-muted-foreground italic">No linked personnel</span>
+                  )}
+                </div>
+              </section>
+            </div>
+          </div>
+
+          {/* Incident History Section */}
+          <section className="mt-8">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-primary flex items-center gap-2 mb-3">
+              <Clock className="h-4 w-4" /> Incident History
+            </h3>
+            <div className="border border-border rounded-lg overflow-hidden">
+              <table className="w-full text-xs">
+                <thead className="bg-muted/50 border-b border-border">
+                  <tr>
+                    <th className="text-left px-4 py-2 font-medium">Time</th>
+                    <th className="text-left px-4 py-2 font-medium">Type</th>
+                    <th className="text-left px-4 py-2 font-medium">Severity</th>
+                    <th className="text-left px-4 py-2 font-medium">Status</th>
+                    <th className="text-right px-4 py-2 font-medium">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {incidents && incidents.length > 0 ? (
+                    incidents.map((i) => (
+                      <tr key={i.id} className="hover:bg-muted/30 transition-colors">
+                        <td className="px-4 py-3">
+                          <div className="font-medium">{formatTime(i.time)}</div>
+                          <div className="text-[10px] text-muted-foreground">{getRelativeTime(i.time)}</div>
+                        </td>
+                        <td className="px-4 py-3 font-medium capitalize">{i.type}</td>
+                        <td className="px-4 py-3"><SeverityPill level={i.severity} /></td>
+                        <td className="px-4 py-3"><StatusPill status={i.status} /></td>
+                        <td className="px-4 py-3 text-right">
+                          <Button variant="ghost" size="sm" className="h-7 text-[10px] gap-1" onClick={() => window.location.href='/dashboard/incidents'}>
+                            DETAILS <ExternalLink className="h-3 w-3" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground italic">
+                        No incident history found for this device.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <DialogFooter className="mt-6 pt-6 border-t border-border">
+            <Button onClick={() => setIsDetectionDialogOpen(false)}>Close Overview</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

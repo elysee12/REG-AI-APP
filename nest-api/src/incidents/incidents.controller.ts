@@ -15,7 +15,10 @@ export class IncidentsController {
   }
 
   @Get()
-  findAll(@Query('branchId') branchId?: string) {
+  findAll(@Query('branchId') branchId?: string, @Query('deviceId') deviceId?: string) {
+    if (deviceId) {
+      return this.incidentsService.findByDevice(deviceId);
+    }
     if (branchId) {
       const id = parseInt(branchId);
       if (!isNaN(id)) {

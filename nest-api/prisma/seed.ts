@@ -6,6 +6,7 @@ const prisma = new PrismaClient();
 async function main() {
   const password = await bcrypt.hash('REG-Admin-2026!', 10);
 
+  // Seed Admin User only
   const admin = await prisma.user.upsert({
     where: { email: 'admin@reg.gov.rw' },
     update: {},
@@ -21,44 +22,7 @@ async function main() {
 
   console.log({ admin });
 
-  // Seed locations
-  const locationsData = [
-    { province_name: 'Kigali City', district_name: 'Gasabo', sector_name: 'Kacyiru', cell_name: 'Kamukina' },
-    { province_name: 'Kigali City', district_name: 'Gasabo', sector_name: 'Remera', cell_name: 'Giporoso' },
-    { province_name: 'Kigali City', district_name: 'Nyarugenge', sector_name: 'Nyamirambo', cell_name: 'Mumena' },
-    { province_name: 'Kigali City', district_name: 'Kicukiro', sector_name: 'Kicukiro', cell_name: 'Kicukiro' },
-    { province_name: 'Southern Province', district_name: 'Huye', sector_name: 'Ngoma', cell_name: 'Tumba' },
-    { province_name: 'Southern Province', district_name: 'Muhanga', sector_name: 'Nyamabuye', cell_name: 'Gitarama' },
-    { province_name: 'Northern Province', district_name: 'Musanze', sector_name: 'Muhoza', cell_name: 'Ruhengeri' },
-    { province_name: 'Northern Province', district_name: 'Gicumbi', sector_name: 'Byumba', cell_name: 'Byumba' },
-    { province_name: 'Eastern Province', district_name: 'Rwamagana', sector_name: 'Muhazi', cell_name: 'Gishari' },
-    { province_name: 'Eastern Province', district_name: 'Nyagatare', sector_name: 'Nyagatare', cell_name: 'Nyagatare' },
-    { province_name: 'Western Province', district_name: 'Rubavu', sector_name: 'Gisenyi', cell_name: 'Rubavu' },
-    { province_name: 'Western Province', district_name: 'Rusizi', sector_name: 'Kamembe', cell_name: 'Kamembe' },
-  ];
-
-  for (const data of locationsData) {
-    await prisma.location.upsert({
-      where: {
-        province_name_district_name_sector_name_cell_name: {
-          province_name: data.province_name,
-          district_name: data.district_name,
-          sector_name: data.sector_name,
-          cell_name: data.cell_name,
-        },
-      },
-      update: {},
-      create: {
-        province_name: data.province_name,
-        district_name: data.district_name,
-        sector_name: data.sector_name,
-        cell_name: data.cell_name,
-      },
-    });
-  }
-  console.log('Locations seeded successfully.');
-
-  // Seed Branches
+  // Seed Branch (required for Device)
   const branch = await prisma.branch.upsert({
     where: { id: 1 },
     update: {},
@@ -70,7 +34,7 @@ async function main() {
     },
   });
 
-  // Seed Devices
+  // Seed Device (required for Incident)
   const device = await prisma.device.upsert({
     where: { id: 'DEV-001' },
     update: {},
@@ -90,7 +54,7 @@ async function main() {
     },
   });
 
-  // Seed Incidents
+  // Seed Incidents matching the Incident schema
   const incidents = [
     {
       deviceId: 'DEV-001',
@@ -98,20 +62,56 @@ async function main() {
       severity: 'high',
       status: 'active',
       time: new Date(),
+      motionStatus: 'detected',
+      vibrationStatus: 'normal',
+      accelX: 0.12,
+      accelY: 9.81,
+      accelZ: 0.05,
+      accelStatus: 'normal',
+      aiClass: 'vandalism',
+      aiConfidence: 0.95,
+      alertStatus: 'sent',
+      imagePath: '/images/incident-001.jpg',
+      videoPath: '/videos/incident-001.mp4',
+      sourceNote: 'AI detection via camera DEV-001',
     },
     {
       deviceId: 'DEV-001',
       type: 'Unauthorized Access',
       severity: 'medium',
       status: 'resolved',
-      time: new Date(Date.now() - 86400000), // 1 day ago
+      time: new Date(Date.now() - 86400000),
+      motionStatus: 'detected',
+      vibrationStatus: 'normal',
+      accelX: 0.08,
+      accelY: 9.79,
+      accelZ: 0.02,
+      accelStatus: 'normal',
+      aiClass: 'unauthorized_access',
+      aiConfidence: 0.87,
+      alertStatus: 'resolved',
+      imagePath: '/images/incident-002.jpg',
+      videoPath: null,
+      sourceNote: 'Motion detected at back entrance',
     },
     {
       deviceId: 'DEV-001',
       type: 'Tampering',
       severity: 'low',
       status: 'active',
-      time: new Date(Date.now() - 3600000), // 1 hour ago
+      time: new Date(Date.now() - 3600000),
+      motionStatus: 'none',
+      vibrationStatus: 'high',
+      accelX: 2.45,
+      accelY: 8.92,
+      accelZ: 1.23,
+      accelStatus: 'alert',
+      aiClass: 'tampering',
+      aiConfidence: 0.78,
+      alertStatus: 'pending',
+      imagePath: null,
+      videoPath: '/videos/incident-003.mp4',
+      sourceNote: 'Abnormal vibration detected',
     },
   ];
 

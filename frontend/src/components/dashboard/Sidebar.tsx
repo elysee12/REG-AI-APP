@@ -37,6 +37,12 @@ export function Sidebar() {
   const logout = useAuthStore((state) => state.logout);
 
   const filteredItems = items.filter((item) => {
+    // Shared items that HQ admins should NOT see (operational details)
+    const operationalItems = ["/dashboard/incidents", "/dashboard/queue", "/dashboard/response"];
+    if (user?.role === "HQ_ADMIN" && operationalItems.includes(item.to)) {
+      return false;
+    }
+
     if ("role" in item && item.role === "HQ_ADMIN") {
       return user?.role === "HQ_ADMIN";
     }

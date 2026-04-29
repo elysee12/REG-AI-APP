@@ -22,14 +22,13 @@ export function BranchDashboardOverview() {
     [devices, user?.branchName]
   );
 
-  const branchIncidents = useMemo(() => 
-    incidents.filter(i => {
+  const branchIncidents = useMemo(() => {
+    return incidents.filter(i => {
       if (user?.role === "HQ_ADMIN") return true;
-      // In incidents data, branchId is usually a number from Prisma, but in store it might be stringified
+      // Robust comparison using String() for both
       return String(i.branchId) === String(user?.branchId);
-    }),
-    [incidents, user?.branchId, user?.role]
-  );
+    });
+  }, [incidents, user?.branchId, user?.role]);
 
   const stats = useMemo(() => {
     const active = branchIncidents.filter(i => i.status === "active" || i.status === "pending").length;

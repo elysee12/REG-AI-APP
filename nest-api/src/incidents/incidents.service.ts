@@ -92,6 +92,24 @@ export class IncidentsService {
     });
   }
 
+  async findByDevice(deviceId: string) {
+    return this.prisma.incident.findMany({
+      where: {
+        deviceId: deviceId,
+      },
+      orderBy: {
+        time: 'desc',
+      },
+      include: {
+        device: {
+          include: {
+            branch: true,
+          },
+        },
+      },
+    });
+  }
+
   async updateStatus(id: string, status: string) {
     return this.prisma.incident.update({
       where: { id },
