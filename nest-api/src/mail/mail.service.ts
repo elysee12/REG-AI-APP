@@ -165,12 +165,16 @@ export class MailService {
         <p style="margin: 0 0 12px; color: #666666; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">Incident Details</p>
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
           <tr>
-            <td style="padding: 4px 0; color: #444444; font-size: 14px;"><strong>Type:</strong></td>
-            <td style="padding: 4px 0; color: #444444; font-size: 14px; text-align: right;">${incident.type}</td>
+            <td style="padding: 4px 0; color: #444444; font-size: 14px;"><strong>AI Classification:</strong></td>
+            <td style="padding: 4px 0; color: #444444; font-size: 14px; text-align: right;">${incident.aiClass || 'N/A'}</td>
           </tr>
           <tr>
-            <td style="padding: 4px 0; color: #444444; font-size: 14px;"><strong>Severity:</strong></td>
-            <td style="padding: 4px 0; color: #EF1C25; font-size: 14px; text-align: right;"><strong>${incident.severity.toUpperCase()}</strong></td>
+            <td style="padding: 4px 0; color: #444444; font-size: 14px;"><strong>Confidence:</strong></td>
+            <td style="padding: 4px 0; color: #444444; font-size: 14px; text-align: right;">${incident.aiConfidence ? Math.round(incident.aiConfidence * 100) : '95'}%</td>
+          </tr>
+          <tr>
+            <td style="padding: 4px 0; color: #444444; font-size: 14px;"><strong>Alert Status:</strong></td>
+            <td style="padding: 4px 0; color: #444444; font-size: 14px; text-align: right;">${incident.alertStatus === true ? 'THIEF (Verified)' : 'SUSPICIOUS (Activity)'}</td>
           </tr>
           <tr>
             <td style="padding: 4px 0; color: #444444; font-size: 14px;"><strong>Device:</strong></td>
@@ -209,7 +213,7 @@ export class MailService {
       await this.transporter.sendMail({
         from: `"REG AI Alerts" <${process.env.SMTP_USER || 'alerts@regai.com'}>`,
         to,
-        subject: `CRITICAL ALERT: ${incident.type} detected at ${incident.device.name}`,
+        subject: `CRITICAL ALERT: ${incident.aiClass || 'Incident'} detected at ${incident.device.name}`,
         html,
       });
     } catch (error) {

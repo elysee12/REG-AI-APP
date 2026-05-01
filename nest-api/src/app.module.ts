@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
@@ -13,7 +15,22 @@ import { SecurityContactsModule } from './security-contacts/security-contacts.mo
 import { WhatsappModule } from './whatsapp/whatsapp.module';
 
 @Module({
-  imports: [PrismaModule, UsersModule, BranchesModule, DevicesModule, AuthModule, MailModule, LocationsModule, IncidentsModule, SecurityContactsModule, WhatsappModule],
+  imports: [
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '..', 'uploads'),
+      serveRoot: '/uploads',
+    }),
+    PrismaModule, 
+    UsersModule, 
+    BranchesModule, 
+    DevicesModule, 
+    AuthModule, 
+    MailModule, 
+    LocationsModule, 
+    IncidentsModule, 
+    SecurityContactsModule, 
+    WhatsappModule
+  ],
   controllers: [AppController],
   providers: [AppService],
 })

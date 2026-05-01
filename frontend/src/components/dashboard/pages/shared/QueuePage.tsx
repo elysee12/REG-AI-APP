@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SeverityPill, StatusPill } from "../../shared/DashboardComponents";
-import { Download, Filter, Search, X, Camera, MapPin, ShieldCheck, Clock, ExternalLink, Video, Image as ImageIcon, Activity, AlertTriangle } from "lucide-react";
+import { Download, Filter, Search, X, Camera, MapPin, ShieldCheck, Clock, ExternalLink, Video, Image as ImageIcon, Activity, AlertTriangle, Loader2 } from "lucide-react";
 import { useDataStore } from "@/lib/data";
 import { useAuthStore } from "@/lib/auth";
 import { useEffect, useState, useMemo } from "react";
@@ -35,35 +35,20 @@ export function QueuePage() {
 
   const filteredIncidents = useMemo(() => {
     return incidents.filter(incident => {
-      const status = (incident.status || "").toLowerCase();
-      
       // Search filter
       const matchesSearch = search === "" || 
         incident.id.toLowerCase().includes(search.toLowerCase()) ||
         incident.location.toLowerCase().includes(search.toLowerCase()) ||
-        incident.type.toLowerCase().includes(search.toLowerCase());
+        (incident.aiClass || "").toLowerCase().includes(search.toLowerCase());
       
       if (!matchesSearch) return false;
 
-      // Status tab filter (top tabs: All, Pending, Active)
-      if (statusFilter !== "all" && status !== statusFilter.toLowerCase()) return false;
-
-      // Quick filters (pills: False Alarm, Closed Incident, Acknowledgment, In Progress)
-      // Only apply if at least one pill is selected
-      if (activeFilters.length > 0) {
-        const matchesPill = activeFilters.some(filter => {
-          if (filter === "False Alarm") return status === "dispatched";
-          if (filter === "Closed Incident") return status === "resolved";
-          if (filter === "Acknowledgment") return status === "pending";
-          if (filter === "In Progress") return status === "active";
-          return false;
-        });
-        if (!matchesPill) return false;
-      }
+      // Filter by status
+      if (statusFilter !== "all" && incident.status !== statusFilter) return false;
 
       return true;
     });
-  }, [incidents, search, activeFilters, statusFilter]);
+  }, [incidents, search, statusFilter]);
 
   const handleOpenDetail = (incident: any) => {
     setSelectedIncident(incident);
@@ -76,7 +61,7 @@ export function QueuePage() {
     const success = await updateIncidentStatus(selectedIncident.id, newStatus);
     if (success) {
       toast.success(`Incident status updated to ${newStatus}`);
-      setSelectedIncident({ ...selectedIncident, status: newStatus.toLowerCase() });
+      setIsModalOpen(false);
     } else {
       toast.error("Failed to update status");
     }
@@ -99,13 +84,13 @@ export function QueuePage() {
             />
           </div>
           <div className="flex bg-secondary/40 p-1 rounded-lg border border-border">
-            {["all", "pending", "active"].map((s) => (
+            {["all", "active", "pending", "solved"].map((s) => (
               <button
                 key={s}
                 onClick={() => setStatusFilter(s)}
                 className={`px-4 py-1.5 rounded-md text-xs font-medium transition-all ${statusFilter === s ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
               >
-                {s === "all" ? "All" : s === "pending" ? "Pending" : "Active"}
+                {s.charAt(0).toUpperCase() + s.slice(1)}
               </button>
             ))}
           </div>
@@ -127,13 +112,13 @@ export function QueuePage() {
             <thead className="text-xs uppercase text-muted-foreground bg-secondary/40">
               <tr>
                 <th className="px-4 py-2.5 w-10"><Checkbox /></th>
-                <th className="text-left px-4 py-2.5 font-medium">Priority</th>
-                <th className="text-left px-4 py-2.5 font-medium">ID</th>
-                <th className="text-left px-4 py-2.5 font-medium">AI Detection</th>
+                <th className="text-left px-4 py-2.5 font-medium">Alert Status</th>
+                <th className="text-left px-4 py-2.5 font-medium">Incident Status</th>
+                <th className="text-left px-4 py-2.5 font-medium">Device ID</th>
+                <th className="text-left px-4 py-2.5 font-medium">AI Classification</th>
                 <th className="text-left px-4 py-2.5 font-medium">Confidence</th>
                 <th className="text-left px-4 py-2.5 font-medium">Site</th>
                 <th className="text-left px-4 py-2.5 font-medium">Detected</th>
-                <th className="text-left px-4 py-2.5 font-medium">Status</th>
                 <th className="text-right px-4 py-2.5 font-medium">Actions</th>
               </tr>
             </thead>
@@ -142,8 +127,15 @@ export function QueuePage() {
                 filteredIncidents.map((r) => (
                   <tr key={r.id} className="border-t border-border hover:bg-secondary/40 transition-colors">
                     <td className="px-4 py-3"><Checkbox /></td>
-                    <td className="px-4 py-3"><PriorityBadge severity={r.severity} /></td>
-                    <td className="px-4 py-3 font-mono text-xs font-bold text-primary">{r.id.split('-')[0]}</td>
+                    <td className="px-4 py-3">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${r.alertStatus ? "bg-primary text-primary-foreground" : "bg-warning text-warning-foreground"}`}>
+                        {r.alertStatus ? "THIEF" : "SUSPICIOUS"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusPill status={r.status} />
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs font-bold text-primary">{r.deviceId}</td>
                     <td className="px-4 py-3">
                       <AiClassBadge aiClass={r.aiClass} />
                     </td>
@@ -163,7 +155,6 @@ export function QueuePage() {
                     <td className="px-4 py-3 text-muted-foreground tabular-nums">
                       {new Date(r.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </td>
-                    <td className="px-4 py-3"><StatusPill status={r.status} /></td>
                     <td className="px-4 py-3 text-right">
                       <Button 
                         size="sm" 
@@ -202,13 +193,14 @@ export function QueuePage() {
           <DialogHeader>
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <SeverityPill level={selectedIncident?.severity || "medium"} />
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${selectedIncident?.alertStatus ? "bg-primary text-primary-foreground" : "bg-warning text-warning-foreground"}`}>
+                  {selectedIncident?.alertStatus ? "THIEF" : "SUSPICIOUS"}
+                </span>
                 <span className="font-mono text-xs text-muted-foreground uppercase">{selectedIncident?.id}</span>
               </div>
-              <StatusPill status={selectedIncident?.status || "pending"} />
             </div>
             <DialogTitle className="text-2xl font-bold">
-              {selectedIncident?.type} Alert
+              {selectedIncident?.aiClass || "AI Detection"} Alert
             </DialogTitle>
             <DialogDescription>
               Incident detected at {selectedIncident?.location}
@@ -232,50 +224,18 @@ export function QueuePage() {
                     {selectedIncident?.aiConfidence ? `${(selectedIncident.aiConfidence * 100).toFixed(1)}%` : "N/A"}
                   </span>
                 </div>
-                <DetailRow label="Alert Status" value={selectedIncident?.alertStatus || "N/A"} />
-                <DetailRow label="Motion Status" value={selectedIncident?.motionStatus || "N/A"} />
-                <DetailRow label="Vibration Status" value={selectedIncident?.vibrationStatus || "N/A"} />
-                <DetailRow label="Acceleration" value={
-                  selectedIncident?.accelX != null 
-                    ? `X:${selectedIncident.accelX.toFixed(2)} Y:${selectedIncident?.accelY?.toFixed(2)} Z:${selectedIncident?.accelZ?.toFixed(2)}`
-                    : "N/A"
-                } />
+                <DetailRow label="Alert Status" value={selectedIncident?.alertStatus === true ? "THIEF" : selectedIncident?.alertStatus === false ? "SUSPICIOUS" : "N/A"} />
               </div>
 
               {/* Media Section */}
               <h3 className="text-sm font-bold uppercase tracking-wider text-primary flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4" /> Evidence Media
               </h3>
-              <div className="grid grid-cols-2 gap-3">
-                {selectedIncident?.imagePath ? (
-                  <div className="relative group rounded-lg overflow-hidden border border-border">
-                    <img 
-                      src={`http://localhost:3000/${selectedIncident.imagePath}`}
-                      alt="Incident capture"
-                      className="w-full h-32 object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = "https://via.placeholder.com/150?text=No+Image";
-                      }}
-                    />
-                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <span className="text-white text-xs font-bold">SNAPSHOT</span>
-                    </div>
-                    <div className="absolute bottom-0 left-0 right-0 bg-black/70 px-2 py-1">
-                      <span className="text-white text-[10px] flex items-center gap-1">
-                        <ImageIcon className="h-3 w-3" /> Snapshot
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="h-32 rounded-lg border border-dashed border-border flex items-center justify-center bg-muted/30">
-                    <span className="text-muted-foreground text-xs">No snapshot</span>
-                  </div>
-                )}
-                
+              <div className="grid grid-cols-1 gap-3">
                 {selectedIncident?.videoPath ? (
                   <div className="relative group rounded-lg overflow-hidden border border-border">
                     <video 
-                      src={`http://localhost:3000/${selectedIncident.videoPath}`}
+                      src={`http://localhost:3000${selectedIncident.videoPath}`}
                       className="w-full h-32 object-cover"
                       muted
                       onMouseOver={(e) => (e.target as HTMLVideoElement).play()}
@@ -344,6 +304,45 @@ export function QueuePage() {
               </div>
 
               <h3 className="text-sm font-bold uppercase tracking-wider text-primary flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4" /> Workflow Management
+              </h3>
+              <div className="bg-secondary/40 rounded-lg p-4 space-y-3">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-muted-foreground">Current Status:</span>
+                  <StatusPill status={selectedIncident?.status} />
+                </div>
+                <div className="pt-2 grid grid-cols-1 gap-2">
+                  {selectedIncident?.status === 'active' && (
+                    <Button 
+                      className="w-full bg-warning hover:bg-warning/90 text-warning-foreground h-9 text-xs font-bold"
+                      onClick={() => handleStatusChange('pending')}
+                      disabled={isUpdatingStatus}
+                    >
+                      {isUpdatingStatus ? <Loader2 className="h-4 w-4 animate-spin" /> : "Mark as Pending"}
+                    </Button>
+                  )}
+                  {(selectedIncident?.status === 'active' || selectedIncident?.status === 'pending') && (
+                    <Button 
+                      className="w-full bg-success hover:bg-success/90 text-success-foreground h-9 text-xs font-bold"
+                      onClick={() => handleStatusChange('solved')}
+                      disabled={isUpdatingStatus}
+                    >
+                      {isUpdatingStatus ? <Loader2 className="h-4 w-4 animate-spin" /> : "Mark as Solved"}
+                    </Button>
+                  )}
+                  {selectedIncident?.status === 'solved' && (
+                    <Button 
+                      variant="outline" 
+                      className="w-full border-success text-success h-9 text-xs font-bold"
+                      disabled
+                    >
+                      <ShieldCheck className="h-4 w-4 mr-2" /> Incident Resolved
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <h3 className="text-sm font-bold uppercase tracking-wider text-primary flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4" /> Security Personnel
               </h3>
               <div className="space-y-2">
@@ -362,22 +361,9 @@ export function QueuePage() {
               </div>
 
               <div className="pt-6 border-t border-border mt-6">
-                <Label className="text-sm font-bold mb-3 block">Update Incident Status</Label>
-                <Select 
-                  disabled={isUpdatingStatus}
-                  onValueChange={handleStatusChange}
-                  value={selectedIncident?.status.toUpperCase()}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Change status..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="PENDING">Pending (Unacknowledged)</SelectItem>
-                    <SelectItem value="ACTIVE">Active (In Progress)</SelectItem>
-                    <SelectItem value="DISPATCHED">Dispatched (False Alarm)</SelectItem>
-                    <SelectItem value="RESOLVED">Resolved (Closed)</SelectItem>
-                  </SelectContent>
-                </Select>
+                <p className="text-xs text-muted-foreground italic text-center">
+                  Incident lifecycle is managed by authorized branch personnel.
+                </p>
               </div>
             </div>
           </div>

@@ -1,7 +1,7 @@
 import { Bell, Search, ShieldCheck, User, Mail, Building, MapPin, Edit2, Save, X, CheckCircle2, Clock as ClockIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { NoSsr } from "../ui/no-ssr";
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useState, useMemo } from "react";
 import { useAuthStore } from "@/lib/auth";
 import { useDataStore } from "@/lib/data";
 import {
@@ -83,11 +83,40 @@ export function Header({ title }: HeaderProps) {
     }
   };
 
-  const notifications = [
-    { id: 1, title: "System Online", message: "Detection engine successfully initialized.", time: "2 mins ago", type: "success" },
-    { id: 2, title: "New Device Registered", message: "Unit REG-AI-8821 is now active in Kigali.", time: "10 mins ago", type: "info" },
-    { id: 3, title: "Security Alert", message: "Unauthorized login attempt blocked from 192.168.1.1.", time: "1 hr ago", type: "warning" },
-  ];
+  const { incidents, fetchIncidents } = useDataStore();
+
+  useEffect(() => {
+    fetchIncidents();
+    // Refresh incidents every 30 seconds for live notifications
+    const interval = setInterval(() => fetchIncidents(), 30000);
+    return () => clearInterval(interval);
+  }, [fetchIncidents]);
+
+  const dynamicNotifications = useMemo(() => {
+    if (!incidents || incidents.length === 0) return [];
+
+    return incidents
+      .filter((incident) => {
+        // HQ Admin: Only show if AI Confidence > 90%
+        if (user?.role === "HQ_ADMIN") {
+          return incident.aiConfidence >= 0.9;
+        }
+        // Branch Manager: Only show if incident belongs to their branch
+        if (user?.role === "BRANCH_MANAGER") {
+          return String(incident.branchId) === String(user.branchId);
+        }
+        return true;
+      })
+      .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+      .slice(0, 5) // Show top 5 latest
+      .map((incident) => ({
+        id: incident.id,
+        title: incident.type,
+        message: `${incident.severity.toUpperCase()} severity incident at ${incident.location}`,
+        time: new Date(incident.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        type: incident.severity === 'critical' ? 'warning' : 'info'
+      }));
+  }, [incidents, user]);
 
   return (
     <header className="h-16 shrink-0 border-b border-border bg-card flex items-center gap-4 px-4 md:px-6">
@@ -240,37 +269,43 @@ export function Header({ title }: HeaderProps) {
           <div className="p-4 border-b border-border bg-card flex items-center justify-between">
             <h2 className="font-bold flex items-center gap-2">
               <Bell className="h-4 w-4 text-primary" /> Notifications
-              <span className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full">3</span>
+              <span className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full">{dynamicNotifications.length}</span>
             </h2>
             <Button variant="ghost" size="sm" className="text-[10px] h-7 uppercase font-bold text-muted-foreground hover:text-primary">
               Mark all as read
             </Button>
           </div>
           <div className="max-h-[400px] overflow-y-auto bg-card">
-            {notifications.map((n) => (
-              <div key={n.id} className="p-4 border-b border-border last:border-0 hover:bg-secondary/30 transition-colors cursor-pointer group">
-                <div className="flex gap-3">
-                  <div className={`h-8 w-8 rounded-full shrink-0 flex items-center justify-center ${
-                    n.type === 'success' ? 'bg-success/10 text-success' : 
-                    n.type === 'warning' ? 'bg-warning/10 text-warning' : 'bg-primary/10 text-primary'
-                  }`}>
-                    {n.type === 'success' ? <CheckCircle2 className="h-4 w-4" /> : 
-                     n.type === 'warning' ? <ShieldCheck className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2 mb-1">
-                      <h4 className="text-xs font-bold truncate group-hover:text-primary transition-colors">{n.title}</h4>
-                      <span className="text-[10px] text-muted-foreground flex items-center gap-1 shrink-0">
-                        <ClockIcon className="h-2.5 w-2.5" /> {n.time}
-                      </span>
+            {dynamicNotifications.length > 0 ? (
+              dynamicNotifications.map((n) => (
+                <div key={n.id} className="p-4 border-b border-border last:border-0 hover:bg-secondary/30 transition-colors cursor-pointer group">
+                  <div className="flex gap-3">
+                    <div className={`h-8 w-8 rounded-full shrink-0 flex items-center justify-center ${
+                      n.type === 'success' ? 'bg-success/10 text-success' : 
+                      n.type === 'warning' ? 'bg-warning/10 text-warning' : 'bg-primary/10 text-primary'
+                    }`}>
+                      {n.type === 'success' ? <CheckCircle2 className="h-4 w-4" /> : 
+                       n.type === 'warning' ? <ShieldCheck className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
                     </div>
-                    <p className="text-[11px] text-muted-foreground leading-relaxed">
-                      {n.message}
-                    </p>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <h4 className="text-xs font-bold truncate group-hover:text-primary transition-colors">{n.title}</h4>
+                        <span className="text-[10px] text-muted-foreground flex items-center gap-1 shrink-0">
+                          <ClockIcon className="h-2.5 w-2.5" /> {n.time}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed">
+                        {n.message}
+                      </p>
+                    </div>
                   </div>
                 </div>
+              ))
+            ) : (
+              <div className="p-12 text-center text-muted-foreground italic text-xs">
+                No new strategic notifications.
               </div>
-            ))}
+            )}
           </div>
           <div className="p-3 bg-secondary/20 text-center border-t border-border">
             <Button variant="ghost" size="sm" className="w-full text-xs font-semibold h-8" onClick={() => setIsNotificationsOpen(false)}>

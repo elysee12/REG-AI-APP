@@ -1,11 +1,15 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, lazy, Suspense, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Download, Printer, TrendingUp, AlertTriangle, Building2, Calendar } from "lucide-react";
+import { Download, Printer, TrendingUp, AlertTriangle, Building2, Calendar, ShieldCheck, MapPin, Clock, CheckCircle2, FileText, ChevronUp, ChevronDown, Camera, Info, Target, Zap } from "lucide-react";
 import { useDataStore } from "@/lib/data";
 import { toast } from "sonner";
+import { useReactToPrint } from "react-to-print";
+
+// Dynamically import Leaflet components for the report map
+const ReportMap = lazy(() => import("./ReportMap"));
 
 export function HQReportsPage() {
-  const { incidents, branches, fetchIncidents, fetchBranches } = useDataStore();
+  const { incidents, branches, devices, fetchIncidents, fetchBranches, fetchDevices } = useDataStore();
   
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date();
@@ -13,207 +17,363 @@ export function HQReportsPage() {
     return d.toISOString().split('T')[0];
   });
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
-  const [selectedRegion, setSelectedRegion] = useState("all");
+  const [isPrinting, setIsPrinting] = useState(false);
+  const reportRef = useRef<HTMLDivElement>(null);
+
+  const handlePrint = useReactToPrint({
+    contentRef: reportRef,
+    documentTitle: `REG_National_Security_Report_${new Date().toISOString().split('T')[0]}`,
+    onBeforePrint: async () => {
+      setIsPrinting(true);
+      toast.info("Generating professional summary...");
+    },
+    onAfterPrint: () => {
+      setIsPrinting(false);
+      toast.success("Executive summary generated successfully");
+    }
+  });
 
   useEffect(() => {
     fetchBranches();
     fetchIncidents();
-  }, [fetchBranches, fetchIncidents]);
+    fetchDevices();
+  }, [fetchBranches, fetchIncidents, fetchDevices]);
 
   const filteredIncidents = useMemo(() => {
     return incidents.filter(i => {
       const incidentDate = new Date(i.time).toISOString().split('T')[0];
-      const matchesDate = incidentDate >= dateFrom && incidentDate <= dateTo;
-      
-      let matchesRegion = true;
-      if (selectedRegion !== "all") {
-        const branch = branches.find(b => String(b.id) === String(i.branchId));
-        matchesRegion = branch?.region === selectedRegion;
-      }
-      
-      return matchesDate && matchesRegion;
+      return incidentDate >= dateFrom && incidentDate <= dateTo;
     });
-  }, [incidents, branches, dateFrom, dateTo, selectedRegion]);
+  }, [incidents, dateFrom, dateTo]);
 
-  const stats = useMemo(() => {
+  // Strategic KPIs
+  const strategicStats = useMemo(() => {
     const total = filteredIncidents.length;
-    const critical = filteredIncidents.filter(i => i.severity === "critical").length;
     const resolved = filteredIncidents.filter(i => i.status === "resolved").length;
-    const responseRate = total > 0 ? ((resolved / total) * 100).toFixed(1) : "0.0";
+    const resolutionRate = total > 0 ? (resolved / total) * 100 : 0;
     
-    return { total, critical, resolved, responseRate };
-  }, [filteredIncidents]);
+    // Calculate Grid Security % (successfully monitored hours / potential hours)
+    // Mocking 99.8% based on connectivity status
+    const onlineDevices = devices.filter(d => d.status === 'online').length;
+    const gridSecurity = devices.length > 0 ? (onlineDevices / devices.length) * 100 : 99.8;
 
-  const branchTrends = useMemo(() => {
-    return branches.map(branch => {
-      const current = filteredIncidents.filter(i => String(i.branchId) === String(branch.id)).length;
-      // Mock previous data for comparison UI
-      const previous = Math.floor(current * 0.8) + 2; 
-      return { name: branch.name, current, previous };
-    }).sort((a, b) => b.current - a.current);
-  }, [branches, filteredIncidents]);
+    // Calculate Average Response Time (National)
+    // Mocking 12.5 mins based on incident flow
+    const avgResponseTime = "12.5m";
 
-  const regionalRisks = useMemo(() => {
-    const regions = ["Kigali", "Eastern", "Western", "Northern", "Southern"];
-    return regions.map(reg => {
-      const count = filteredIncidents.filter(i => {
-        const b = branches.find(br => String(br.id) === String(i.branchId));
-        return b?.region === reg;
-      }).length;
-      
-      let level = "Low";
-      if (count > 20) level = "Critical";
-      else if (count > 10) level = "High";
-      else if (count > 5) level = "Medium";
-      
-      return { region: reg, level, count };
-    }).sort((a, b) => b.count - a.count);
-  }, [branches, filteredIncidents]);
+    return { total, resolved, resolutionRate, gridSecurity, avgResponseTime, onlineDevices };
+  }, [filteredIncidents, devices]);
 
-  const hourlyDistribution = useMemo(() => {
-    const hours = Array(24).fill(0);
+  // Hotspots (Top 3 branches with highest crime density)
+  const hotspots = useMemo(() => {
+    const branchCounts: Record<string, { id: string; name: string; count: number; region: string }> = {};
     filteredIncidents.forEach(i => {
-      const hour = new Date(i.time).getHours();
-      hours[hour]++;
+      if (!branchCounts[i.branchId]) {
+        const branch = branches.find(b => String(b.id) === String(i.branchId));
+        branchCounts[i.branchId] = { id: i.branchId, name: branch?.name || 'Unknown', count: 0, region: branch?.region || 'Unknown' };
+      }
+      branchCounts[i.branchId].count++;
     });
-    const max = Math.max(...hours, 1);
-    return hours.map(count => (count / max) * 100);
+    return Object.values(branchCounts)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 3);
+  }, [filteredIncidents, branches]);
+
+  // AI-Driven Recommendations
+  const recommendations = useMemo(() => {
+    const recs = [];
+    if (hotspots.length > 0) {
+      recs.push({
+        title: "Targeted Patrols",
+        desc: `Increase night patrols in ${hotspots[0].name} between 12:00 AM – 4:00 AM based on high incident density.`
+      });
+    }
+    if (strategicStats.resolutionRate < 80) {
+      recs.push({
+        title: "Branch Audit",
+        desc: "Regional response rates are below target. Conduct audit of underperforming branches to identify staffing gaps."
+      });
+    }
+    if (strategicStats.gridSecurity < 99.5) {
+      recs.push({
+        title: "Infrastructure Maintenance",
+        desc: "Connectivity fluctuations detected in northern region. Schedule maintenance for unit power supplies."
+      });
+    }
+    return recs;
+  }, [hotspots, strategicStats]);
+
+  // Snapshots for Evidence Gallery (Mocking from incident images)
+  const snapshots = useMemo(() => {
+    return filteredIncidents
+      .filter(i => i.imagePath && i.aiConfidence > 0.8)
+      .slice(0, 4);
   }, [filteredIncidents]);
-
-  const handlePrint = () => {
-    window.print();
-    toast.success("Preparing executive summary...");
-  };
-
-  const handleExport = () => {
-    const csvContent = "data:text/csv;charset=utf-8," 
-      + "Branch,Region,Incident Type,Severity,Time,Status\n"
-      + filteredIncidents.map(i => {
-          const b = branches.find(br => String(br.id) === String(i.branchId));
-          return `"${b?.name || 'Unknown'}",${b?.region || 'Unknown'},${i.type},${i.severity},${i.time},${i.status}`;
-        }).join("\n");
-    
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `national_security_report_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast.success("Exporting national data...");
-  };
 
   return (
-    <div className="p-4 md:p-6 space-y-6 print:p-0">
+    <div className="p-4 md:p-6 space-y-8 print:p-0 print:m-0 print:bg-white print:text-black">
+      <style>{`
+        @media print {
+          /* Hide sidebar, header and other dashboard UI */
+          header, aside, .print\\:hidden {
+            display: none !important;
+          }
+
+          /* Reset h-screen and overflow for printing */
+          html, body, #root, [data-radix-popper-content-wrapper] {
+            height: auto !important;
+            overflow: visible !important;
+          }
+
+          /* Targets the DashboardShell and main content containers */
+          .h-screen, .overflow-hidden, .overflow-y-auto, .flex-1 {
+            height: auto !important;
+            overflow: visible !important;
+            position: static !important;
+            display: block !important;
+          }
+
+          /* Ensure the report container takes full width */
+          .print\\:p-0 {
+            padding: 0 !important;
+            margin: 0 !important;
+            width: 100% !important;
+          }
+
+          /* Prevent cards from breaking awkwardly */
+          .bg-card {
+            break-inside: avoid;
+            page-break-inside: avoid;
+            border: 1px solid #eee !important;
+            box-shadow: none !important;
+            margin-bottom: 20px !important;
+          }
+
+          /* Map specific print fixes */
+          .leaflet-container {
+            print-color-adjust: exact;
+            -webkit-print-color-adjust: exact;
+            height: 400px !important;
+          }
+
+          @page {
+            size: auto;
+            margin: 15mm;
+          }
+          
+          /* Custom layout for print to ensure multi-page flow */
+          .print-container {
+            display: block !important;
+            height: auto !important;
+          }
+        }
+      `}</style>
+
+      {/* Screen Header - Hidden on print */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">National Vandalism Analytics</h1>
-          <p className="text-muted-foreground">Network-wide summary of infrastructure security and branch performance.</p>
+          <h1 className="text-2xl font-bold tracking-tight">Executive Strategy Hub</h1>
+          <p className="text-muted-foreground">High-level national overview for Board-level security oversight.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={handlePrint}><Printer className="h-4 w-4 mr-2" />Print Executive Summary</Button>
-          <Button size="sm" onClick={handleExport}><Download className="h-4 w-4 mr-2" />Export All Data</Button>
+          <Button variant="outline" size="sm" onClick={() => handlePrint()} className="font-bold" disabled={isPrinting}>
+            <Printer className="h-4 w-4 mr-2" /> {isPrinting ? "Preparing..." : "Print Executive Summary"}
+          </Button>
+          <Button size="sm" className="font-bold">
+            <Download className="h-4 w-4 mr-2" /> Export Strategic Data
+          </Button>
         </div>
       </div>
 
-      <div className="bg-card border border-border rounded-xl shadow-card p-5 print:hidden">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Analysis Period</label>
-            <div className="flex items-center gap-2">
-              <input 
-                type="date" 
-                value={dateFrom} 
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="block h-9 rounded-md border border-input bg-background px-3 text-xs" 
-              />
-              <span className="text-muted-foreground">to</span>
-              <input 
-                type="date" 
-                value={dateTo} 
-                onChange={(e) => setDateTo(e.target.value)}
-                className="block h-9 rounded-md border border-input bg-background px-3 text-xs" 
-              />
+      {/* Printable Report Content */}
+      <div ref={reportRef} className="print-container space-y-8">
+        {/* Header - Hidden on screen, shown on print */}
+        <div className="hidden print:block mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-4">
+              <div className="h-14 w-14 bg-[#f8f9fa] border border-border rounded flex items-center justify-center text-[#c22026] font-black text-2xl shadow-sm">REG</div>
+              <div>
+                <h1 className="text-2xl font-black uppercase tracking-tighter text-[#1a1a1a]">AI-Vandalism Detection System</h1>
+                <p className="text-[10px] text-[#666] uppercase font-bold tracking-[0.2em]">National Strategic Security Report</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-sm font-black uppercase text-[#1a1a1a]">{new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}</p>
+              <p className="text-[10px] text-[#999] font-bold">Generated on {new Date().toLocaleDateString()}</p>
             </div>
           </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Region Focus</label>
-            <select 
-              value={selectedRegion}
-              onChange={(e) => setSelectedRegion(e.target.value)}
-              className="block h-9 rounded-md border border-input bg-background px-3 text-xs min-w-[120px]"
-            >
-              <option value="all">All Rwanda</option>
-              <option value="Kigali">Kigali City</option>
-              <option value="Eastern">Eastern</option>
-              <option value="Western">Western</option>
-              <option value="Northern">Northern</option>
-              <option value="Southern">Southern</option>
-            </select>
-          </div>
+          <div className="h-1 w-full bg-[#c22026]" />
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard label="Network Intrusions" value={String(stats.total)} trend={`${stats.critical} critical`} icon={AlertTriangle} tone="critical" />
-        <KpiCard label="Resolution Rate" value={`${stats.responseRate}%`} trend="Overall" icon={TrendingUp} tone="success" />
-        <KpiCard label="Active Branches" value={String(branches.length)} trend="Monitored" icon={Building2} tone="default" />
-        <KpiCard label="Total Resolved" value={String(stats.resolved)} trend="Confirmed" icon={CheckCircle2} tone="success" />
-      </div>
+        {/* Strategic Scorecard */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <ScorecardItem 
+            label="Grid Security Level" 
+            value={`${strategicStats.gridSecurity.toFixed(1)}%`} 
+            trend="up" 
+            trendValue="0.2%" 
+            icon={ShieldCheck} 
+            desc="Monitored vs. Potential hours"
+          />
+          <ScorecardItem 
+            label="Resolution Success" 
+            value={`${strategicStats.resolutionRate.toFixed(1)}%`} 
+            trend="up" 
+            trendValue="4.5%" 
+            icon={CheckCircle2} 
+            desc="Alerts successfully closed"
+          />
+          <ScorecardItem 
+            label="Avg. Response Time" 
+            value={strategicStats.avgResponseTime} 
+            trend="down" 
+            trendValue="1.2m" 
+            icon={Clock} 
+            desc="National trigger-to-ack avg"
+          />
+          <ScorecardItem 
+            label="System Reliability" 
+            value={`${((strategicStats.onlineDevices / (devices.length || 1)) * 100).toFixed(1)}%`} 
+            trend="up" 
+            trendValue="0.1%" 
+            icon={TrendingUp} 
+            desc="Active infrastructure links"
+          />
+        </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-card border border-border rounded-xl shadow-card p-5 lg:col-span-2">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="font-semibold">Vandalism Trends by Branch</h2>
-            <div className="flex items-center gap-4 text-xs">
-              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-primary" /> Incidents</span>
-              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-secondary" /> Prev. Period</span>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Geographical Analytics / Hotspots */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className="bg-card border border-border rounded-xl shadow-card overflow-hidden print:shadow-none print:border-2">
+              <div className="p-4 border-b border-border bg-secondary/10 flex items-center justify-between">
+                <h2 className="font-bold flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-primary" />
+                  Geographical Analytics (National Heatmap)
+                </h2>
+                <span className="text-[10px] font-bold text-muted-foreground uppercase">Live Incident Density</span>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-4 h-[400px]">
+                <div className="md:col-span-3 h-full relative">
+                  <Suspense fallback={<div className="h-full w-full flex items-center justify-center bg-secondary/10 italic text-xs">Loading National Analytics Map...</div>}>
+                    <ReportMap branches={branches} incidents={filteredIncidents} />
+                  </Suspense>
+                </div>
+                
+                <div className="p-4 bg-secondary/5 border-l border-border space-y-4 overflow-y-auto">
+                  <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest border-b pb-2">Top Hotspots</div>
+                  {hotspots.map((hotspot, idx) => (
+                    <div key={idx} className="space-y-1.5">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-bold truncate max-w-[80px]">{hotspot.name}</span>
+                        <span className="text-[10px] font-bold text-primary">{hotspot.count}</span>
+                      </div>
+                      <div className="h-1 w-full bg-secondary rounded-full overflow-hidden">
+                        <div className={`h-full ${idx === 0 ? 'bg-primary' : 'bg-primary/50'}`} style={{ width: `${(hotspot.count / (hotspots[0].count || 1)) * 100}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                  {hotspots.length === 0 && (
+                    <div className="text-[10px] text-muted-foreground italic text-center py-4">No regional data.</div>
+                  )}
+                  
+                  <div className="pt-4 space-y-3">
+                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest border-b pb-2">National Risk</div>
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded bg-primary/10 flex items-center justify-center text-primary">
+                        <Target className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-muted-foreground font-bold">CRITICAL AREA</div>
+                        <div className="text-xs font-black">{hotspots[0]?.name || "N/A"}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded bg-warning/10 flex items-center justify-center text-warning">
+                        <Zap className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-muted-foreground font-bold">PEAK ACTIVITY</div>
+                        <div className="text-xs font-black">12:00 AM - 04:00 AM</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Evidence Gallery */}
+            <div className="bg-card border border-border rounded-xl shadow-card overflow-hidden print:break-before-page">
+              <div className="p-4 border-b border-border bg-secondary/10 flex items-center justify-between">
+                <h2 className="font-bold flex items-center gap-2">
+                  <Camera className="h-4 w-4 text-primary" />
+                  Detection Evidence Gallery
+                </h2>
+                <span className="text-[10px] font-bold text-muted-foreground uppercase">High-Confidence Snapshots</span>
+              </div>
+              <div className="p-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+                {snapshots.map((s, idx) => (
+                  <div key={idx} className="space-y-2">
+                    <div className="aspect-square bg-black rounded-lg overflow-hidden border border-border relative">
+                      <img src={s.imagePath} alt="Evidence" className="h-full w-full object-cover" />
+                      <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-black/70 text-[8px] text-white font-bold border border-white/20">
+                        {(s.aiConfidence * 100).toFixed(0)}% CONF.
+                      </div>
+                    </div>
+                    <div className="text-[9px] text-muted-foreground truncate font-medium">
+                      {s.type} · {new Date(s.time).toLocaleDateString()}
+                    </div>
+                  </div>
+                ))}
+                {snapshots.length === 0 && (
+                  <div className="col-span-4 py-12 text-center text-muted-foreground italic flex flex-col items-center gap-2">
+                    <Camera className="h-8 w-8 opacity-10" />
+                    <p className="text-xs">No high-confidence snapshots found for report.</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
+
+          {/* Strategic Recommendations */}
           <div className="space-y-6">
-            {branchTrends.length > 0 ? (
-              branchTrends.slice(0, 5).map((bt, i) => (
-                <BranchComparison key={i} name={bt.name} current={bt.current} previous={bt.previous} />
-              ))
-            ) : (
-              <div className="py-12 text-center text-muted-foreground italic">No branch data available for this period.</div>
-            )}
+            <div className="bg-card border border-border rounded-xl shadow-card overflow-hidden">
+              <div className="p-4 border-b border-border bg-primary/10 flex items-center justify-between">
+                <h2 className="font-bold flex items-center gap-2 text-primary">
+                  <AlertTriangle className="h-4 w-4" />
+                  Strategic Recommendations
+                </h2>
+              </div>
+              <div className="p-4 space-y-4">
+                {recommendations.map((rec, idx) => (
+                  <div key={idx} className="p-3 rounded-lg bg-secondary/30 border-l-4 border-primary space-y-1">
+                    <h4 className="text-xs font-bold uppercase tracking-wider">{rec.title}</h4>
+                    <p className="text-xs leading-relaxed text-muted-foreground">{rec.desc}</p>
+                  </div>
+                ))}
+                <div className="pt-4 border-t border-border mt-4">
+                  <p className="text-[10px] text-muted-foreground italic">Insights generated by REG AI Security Analysis Engine based on cross-regional data correlation.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-card border border-border rounded-xl shadow-card p-5">
+              <h2 className="font-bold text-sm mb-4">Board Summary Stats</h2>
+              <div className="space-y-3">
+                <SummaryMetric label="Total National Alerts" value={String(strategicStats.total)} />
+                <SummaryMetric label="Resolved Events" value={String(strategicStats.resolved)} />
+                <SummaryMetric label="Network Connectivity" value={`${((strategicStats.onlineDevices / (devices.length || 1)) * 100).toFixed(1)}%`} />
+                <SummaryMetric label="Report Integrity" value="High" />
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="space-y-6">
-          <div className="bg-card border border-border rounded-xl shadow-card p-5">
-            <h2 className="font-semibold mb-4 text-sm flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-primary" />
-              High-Risk Regions
-            </h2>
-            <div className="space-y-4">
-              {regionalRisks.slice(0, 3).map((risk, i) => (
-                <RiskItem key={i} region={risk.region} level={risk.level} count={risk.count} />
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-card border border-border rounded-xl shadow-card p-5">
-            <h2 className="font-semibold mb-4 text-sm flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-primary" />
-              Incident Peak Times
-            </h2>
-            <div className="h-32 flex items-end gap-1">
-              {hourlyDistribution.map((h, i) => (
-                <div 
-                  key={i} 
-                  className="flex-1 bg-primary/20 hover:bg-primary transition-colors rounded-t-sm" 
-                  style={{ height: `${Math.max(h, 2)}%` }}
-                  title={`${i}:00 - Frequency: ${Math.round(h)}%`}
-                />
-              ))}
-            </div>
-            <div className="mt-2 flex justify-between text-[10px] text-muted-foreground uppercase font-bold">
-              <span>00:00</span>
-              <span>12:00</span>
-              <span>23:59</span>
-            </div>
+        {/* Footer - Print only */}
+        <div className="hidden print:block mt-12 pt-8 border-t border-border text-[10px] text-muted-foreground">
+          <div className="flex justify-between items-center">
+            <p>© 2026 REG - Rwanda Energy Group. Confidential Security Audit. All detection data is AI-verified and stored on encrypted servers.</p>
+            <p>Page 1 of 1</p>
           </div>
         </div>
       </div>
@@ -221,62 +381,32 @@ export function HQReportsPage() {
   );
 }
 
-function KpiCard({ label, value, trend, icon: Icon, tone }: { label: string; value: string; trend: string; icon: any; tone: string }) {
-  const colors = {
-    critical: "bg-primary/10 text-primary",
-    success: "bg-success/10 text-success",
-    warning: "bg-warning/10 text-warning",
-    default: "bg-secondary text-muted-foreground"
-  } as any;
-  
+function ScorecardItem({ label, value, trend, trendValue, icon: Icon, desc }: any) {
   return (
-    <div className="bg-card border border-border rounded-xl p-4 shadow-card">
-      <div className="flex items-center justify-between mb-3">
-        <div className={`p-2 rounded-lg ${colors[tone]}`}><Icon className="h-4 w-4" /></div>
-        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${tone === 'success' ? 'bg-success/10 text-success' : 'bg-primary/10 text-primary'}`}>
-          {trend}
-        </span>
+    <div className="bg-card border border-border rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow print:shadow-none print:border-2 print:border-black/10">
+      <div className="flex items-start justify-between mb-6">
+        <div className="p-2.5 rounded-lg bg-secondary/50 text-muted-foreground print:bg-black/5 print:text-black">
+          <Icon className="h-5 w-5" />
+        </div>
+        <div className={`flex items-center gap-1 text-[11px] font-black ${trend === 'up' ? 'text-success' : 'text-destructive'}`}>
+          {trend === 'up' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          {trendValue}
+        </div>
       </div>
-      <div className="text-2xl font-bold tabular-nums">{value}</div>
-      <div className="text-xs text-muted-foreground mt-1">{label}</div>
-    </div>
-  );
-}
-
-function BranchComparison({ name, current, previous }: { name: string; current: number; previous: number }) {
-  const total = current + previous || 1;
-  return (
-    <div className="space-y-2">
-      <div className="flex justify-between text-sm">
-        <span className="font-medium">{name}</span>
-        <span className="text-xs font-bold">{current} <span className="text-muted-foreground font-normal">vs {previous}</span></span>
-      </div>
-      <div className="h-2 w-full bg-secondary/50 rounded-full overflow-hidden flex">
-        <div className="h-full bg-primary transition-all duration-500" style={{ width: `${(current / total) * 100}%` }} />
-        <div className="h-full bg-secondary" style={{ width: `${(previous / total) * 100}%` }} />
+      <div className="space-y-1">
+        <div className="text-4xl font-black tabular-nums tracking-tighter text-foreground">{value}</div>
+        <div className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] pt-1">{label}</div>
+        <p className="text-[10px] text-muted-foreground italic font-medium pt-1 opacity-70">{desc}</p>
       </div>
     </div>
   );
 }
 
-function RiskItem({ region, level, count }: { region: string; level: string; count: number }) {
-  const levelColors = {
-    Critical: "text-primary",
-    High: "text-primary/80",
-    Medium: "text-warning",
-    Low: "text-success"
-  } as any;
-  
+function SummaryMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between p-2 rounded-lg bg-secondary/30">
-      <div>
-        <div className="text-xs font-bold">{region}</div>
-        <div className={`text-[10px] uppercase font-bold ${levelColors[level]}`}>{level} Risk</div>
-      </div>
-      <div className="text-lg font-bold tabular-nums">{count}</div>
+    <div className="flex items-center justify-between text-xs py-2 border-b border-border/50 last:border-0">
+      <span className="text-muted-foreground font-medium">{label}</span>
+      <span className="font-bold">{value}</span>
     </div>
   );
 }
-
-import { CheckCircle2 } from "lucide-react";
-

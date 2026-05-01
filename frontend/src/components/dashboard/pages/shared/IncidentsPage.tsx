@@ -13,7 +13,19 @@ export function IncidentsPage() {
   const user = useAuthStore((state) => state.user);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("Camera Live");
+  const [search, setSearch] = useState("");
   const navigate = useNavigate();
+
+  const filteredIncidents = incidents.filter(incident => {
+    // Only show Active and Pending incidents
+    if (incident.status === 'solved' || incident.status === 'closed') return false;
+    
+    const searchLower = search.toLowerCase();
+    return (
+      incident.deviceId.toLowerCase().includes(searchLower) ||
+      incident.location.toLowerCase().includes(searchLower)
+    );
+  });
 
   useEffect(() => {
     fetchDevices();
@@ -22,14 +34,14 @@ export function IncidentsPage() {
   }, [fetchDevices, fetchIncidents, user]);
 
   useEffect(() => {
-    if (incidents.length > 0 && !selectedId) {
-      setSelectedId(incidents[0].id);
+    if (filteredIncidents.length > 0 && !selectedId) {
+      setSelectedId(filteredIncidents[0].id);
     }
-  }, [incidents, selectedId]);
+  }, [filteredIncidents, selectedId]);
 
-  const selectedIncident = incidents.find(i => i.id === selectedId) || incidents[0];
+  const selectedIncident = filteredIncidents.find(i => i.id === selectedId) || filteredIncidents[0];
   
-  if (!selectedIncident && incidents.length === 0) {
+  if (!selectedIncident && filteredIncidents.length === 0) {
     return (
       <div className="p-4 md:p-6 flex items-center justify-center h-[calc(100vh-10rem)]">
         <div className="text-center">
@@ -67,13 +79,13 @@ export function IncidentsPage() {
     return date.toLocaleDateString();
   };
 
-  const handleResolve = async () => {
+  const handleUpdateStatus = async (newStatus: string) => {
     if (!selectedIncident) return;
-    const success = await updateIncidentStatus(selectedIncident.id, "resolved");
+    const success = await updateIncidentStatus(selectedIncident.id, newStatus);
     if (success) {
-      toast.success("Incident marked as resolved");
+      toast.success(`Incident status updated to ${newStatus}`);
     } else {
-      toast.error("Failed to resolve incident");
+      toast.error("Failed to update status");
     }
   };
 
@@ -107,13 +119,13 @@ export function IncidentsPage() {
             <div>Generated on: ${new Date().toLocaleString()}</div>
           </div>
           <div class="section">
-            <div class="label">Incident Type:</div> ${selectedIncident.type}
+            <div class="label">AI Class:</div> ${selectedIncident.aiClass || 'N/A'}
           </div>
           <div class="section">
-            <div class="label">Severity:</div> <span class="severity ${selectedIncident.severity}">${selectedIncident.severity}</span>
+            <div class="label">Alert Status:</div> ${selectedIncident.alertStatus ? 'THIEF (Alert)' : 'SUSPICIOUS (Activity)'}
           </div>
           <div class="section">
-            <div class="label">Status:</div> ${selectedIncident.status}
+            <div class="label">Confidence:</div> ${Math.round((selectedIncident.aiConfidence || 0) * 100)}%
           </div>
           <div class="section">
             <div class="label">Time Detected:</div> ${formatTime(selectedIncident.time)}
@@ -129,14 +141,13 @@ export function IncidentsPage() {
           </div>
           <hr/>
           <h2>AI Detection Summary</h2>
-          <p>The AI unit ${selectedIncident.deviceId} detected ${selectedIncident.type} activity with a confidence level of ${selectedIncident.aiConfidence || '95'}%. 
-          Source metadata indicates: ${selectedIncident.sourceNote || 'Standard network monitoring detection'}.</p>
+          <p>The AI unit ${selectedIncident.deviceId} detected potential unauthorized activity with a confidence level of ${selectedIncident.aiConfidence || '95'}%.</p>
           
           <h2>Telemetric Data</h2>
           <ul>
-            <li>Motion: ${selectedIncident.motionStatus || 'Detected'}</li>
-            <li>Vibration: ${selectedIncident.vibrationStatus || 'Normal'}</li>
-            <li>Acceleration: X:${selectedIncident.accelX || '0.12'}, Y:${selectedIncident.accelY || '9.81'}, Z:${selectedIncident.accelZ || '0.05'}</li>
+            <li>Motion: Detected</li>
+            <li>Vibration: Normal</li>
+            <li>Acceleration: Standard baseline</li>
           </ul>
           
           <div style="margin-top: 50px; border-top: 1px solid #ccc; padding-top: 20px; font-size: 12px; color: #666;">
@@ -157,10 +168,15 @@ export function IncidentsPage() {
       <div className="xl:col-span-1 bg-card border border-border rounded-xl shadow-card flex flex-col max-h-[calc(100vh-9rem)]">
         <div className="p-4 border-b border-border">
           <h2 className="font-semibold">Live Incidents</h2>
-          <Input placeholder="Filter by ID or site…" className="mt-2 h-9" />
+          <Input 
+            placeholder="Filter by ID or site…" 
+            className="mt-2 h-9" 
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
         <div className="overflow-y-auto divide-y divide-border">
-          {incidents.map((i) => (
+          {filteredIncidents.map((i) => (
             <button
               key={i.id}
               onClick={() => setSelectedId(i.id)}
@@ -168,14 +184,15 @@ export function IncidentsPage() {
             >
               <div className="flex items-center justify-between">
                 <span className="font-mono text-[10px] text-muted-foreground uppercase">{i.id.split('-')[0]}</span>
-                <SeverityPill level={i.severity} />
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${i.alertStatus ? "bg-primary text-primary-foreground" : "bg-warning text-warning-foreground"}`}>
+                  {i.alertStatus ? "THIEF" : "SUSPICIOUS"}
+                </span>
               </div>
               <div className="mt-1 font-semibold text-sm">{i.location}</div>
-              <div className="text-xs text-muted-foreground mt-0.5">{i.type}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">{i.aiClass || "AI Detection"}</div>
               <div className="mt-2 flex items-center gap-2 text-xs">
                 <Clock className="h-3 w-3 text-muted-foreground" />
                 <span className="text-muted-foreground">{getRelativeTime(i.time)}</span>
-                <span className="ml-auto"><StatusPill status={i.status} /></span>
               </div>
             </button>
           ))}
@@ -190,17 +207,23 @@ export function IncidentsPage() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2">
-                    <SeverityPill level={selectedIncident.severity} />
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${selectedIncident.alertStatus ? "bg-primary text-primary-foreground" : "bg-warning text-warning-foreground"}`}>
+                      {selectedIncident.alertStatus ? "THIEF" : "SUSPICIOUS"}
+                    </span>
                     <span className="font-mono text-xs text-muted-foreground uppercase">{selectedIncident.id}</span>
                   </div>
-                  <h1 className="mt-2 text-xl font-bold">{selectedIncident.type} — {selectedIncident.location.split(' · ')[0]}</h1>
+                  <h1 className="mt-2 text-xl font-bold">{selectedIncident.aiClass || "AI Detection"} — {selectedIncident.location.split(' · ')[0]}</h1>
                   <p className="text-sm text-muted-foreground">{selectedIncident.location.split(' · ')[1]} Station Area</p>
                 </div>
                 <Button variant="ghost" size="icon" onClick={() => setSelectedId(null)}><X className="h-4 w-4" /></Button>
               </div>
-              <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+              <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
                 <Meta label="Detection time" value={formatTime(selectedIncident.time)} />
-                <Meta label="Type" value={selectedIncident.type} />
+                <Meta label="AI Class" value={selectedIncident.aiClass || "N/A"} />
+                <Meta label="Alert Status" value={selectedIncident.alertStatus ? "THIEF" : "SUSPICIOUS"} />
+                <Meta label="Confidence" value={`${Math.round((selectedIncident.aiConfidence || 0) * 100)}%`} />
+                <Meta label="Workflow Status" value={selectedIncident.status.toUpperCase()} />
+                <Meta label="Device ID" value={selectedIncident.deviceId} />
                 <Meta 
                   label="GPS" 
                   value={associatedDevice ? `${associatedDevice.location.lat.toFixed(4)}, ${associatedDevice.location.lng.toFixed(4)}` : "N/A"}
@@ -244,15 +267,26 @@ export function IncidentsPage() {
                 )}
 
                 {activeTab === "Video Clip" && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 text-center p-6">
-                    <Video className="h-12 w-12 text-primary/40 mb-3" />
-                    <h3 className="font-semibold">Recorded Evidence Clip</h3>
-                    <p className="text-sm text-muted-foreground max-w-xs mt-1">
-                      {selectedIncident.videoPath ? `Evidence file: ${selectedIncident.videoPath}` : "Loading recorded clip from encrypted storage..."}
-                    </p>
-                    <Button variant="outline" size="sm" className="mt-4 gap-2">
-                      <Clock className="h-4 w-4" /> Request Archive Data
-                    </Button>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-background text-center">
+                    {selectedIncident.videoPath ? (
+                      <video 
+                        src={`http://localhost:3000${selectedIncident.videoPath}`} 
+                        controls 
+                        className="w-full h-full object-contain"
+                        autoPlay
+                      />
+                    ) : (
+                      <div className="p-6">
+                        <Video className="h-12 w-12 text-primary/40 mb-3 mx-auto" />
+                        <h3 className="font-semibold">Recorded Evidence Clip</h3>
+                        <p className="text-sm text-muted-foreground max-w-xs mt-1">
+                          No video evidence recorded for this incident.
+                        </p>
+                        <Button variant="outline" size="sm" className="mt-4 gap-2">
+                          <Clock className="h-4 w-4" /> Request Archive Data
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -261,19 +295,19 @@ export function IncidentsPage() {
                     <SensorChip 
                       icon={Activity} 
                       label="Vibration" 
-                      value={selectedIncident.vibrationStatus || "Normal"}
-                      tone={selectedIncident.vibrationStatus === 'High' ? "critical" : "success"}
+                      value="Normal"
+                      tone="success"
                     />
                     <SensorChip 
                       icon={Radio} 
                       label="Motion" 
-                      value={selectedIncident.motionStatus || "Detected"}
+                      value="Detected"
                       tone="warning" 
                     />
                     <SensorChip 
                       icon={AlertTriangle} 
                       label="Accelerometer" 
-                      value={`X:${selectedIncident.accelX || '0.12'} Y:${selectedIncident.accelY || '9.81'}`}
+                      value="Stable"
                       tone="success" 
                     />
                     <div className="col-span-2 md:col-span-3 bg-secondary/20 rounded-lg p-4 border border-border">
@@ -285,7 +319,7 @@ export function IncidentsPage() {
                         </div>
                         <div className="flex justify-between border-b border-border/50 pb-1">
                           <span>T-50ms: AI Classification triggered</span>
-                          <span className="text-primary">{selectedIncident.type}</span>
+                          <span className="text-primary">{selectedIncident.aiClass || "Detection"}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>T-120ms: Local alarm broadcast</span>
@@ -307,16 +341,15 @@ export function IncidentsPage() {
                     <div className="space-y-4 text-sm leading-relaxed">
                       <p>
                         <span className="font-bold text-primary">Detection Analysis:</span> At {formatTime(selectedIncident.time)}, 
-                        AI Unit {selectedIncident.deviceId} identified high-probability {selectedIncident.type} behavior.
+                        AI Unit {selectedIncident.deviceId} identified high-probability <span className="font-bold text-primary">{selectedIncident.aiClass || "Unauthorized"}</span> behavior.
                       </p>
                       <p>
-                        <span className="font-bold text-primary">Contextual Factors:</span> The pattern matches known vandalism 
-                        signatures with <span className="text-primary font-bold">{selectedIncident.aiConfidence || '95'}% confidence</span>. 
-                        Sensors recorded abnormal vibration levels concurrent with visual classification.
+                        <span className="font-bold text-primary">Contextual Factors:</span> The pattern matches known <span className="font-bold text-primary">{selectedIncident.alertStatus ? 'THIEF' : 'SUSPICIOUS'}</span> signatures 
+                        with <span className="text-primary font-bold">{Math.round((selectedIncident.aiConfidence || 0) * 100)}% confidence</span>. 
                       </p>
                       <div className="p-3 rounded border border-primary/20 bg-primary/5 text-xs">
                         <span className="font-bold block mb-1 uppercase tracking-wider text-[10px]">Source Note</span>
-                        {selectedIncident.sourceNote || "System automatically flagged this event based on physical tampering sensors and computer vision analysis."}
+                        System automatically flagged this event based on physical tampering sensors and computer vision analysis.
                       </div>
                     </div>
                   </div>
@@ -333,27 +366,41 @@ export function IncidentsPage() {
             >
               <Send className="h-4 w-4" /> Response Actions
             </Button>
+            
+            {selectedIncident.status === 'active' && (
+              <Button 
+                className="gap-2 bg-warning hover:bg-warning/90 text-warning-foreground"
+                onClick={() => handleUpdateStatus('pending')}
+              >
+                <Activity className="h-4 w-4" /> Mark as Pending
+              </Button>
+            )}
+
+            {selectedIncident.status === 'pending' && (
+              <Button 
+                className="gap-2 bg-success hover:bg-success/90 text-success-foreground"
+                onClick={() => handleUpdateStatus('solved')}
+              >
+                <CheckCircle2 className="h-4 w-4" /> Mark as Solved
+              </Button>
+            )}
+
+            {selectedIncident.status === 'solved' && (
+              <Button 
+                variant="outline"
+                className="gap-2 border-success text-success hover:bg-success/10"
+                disabled
+              >
+                <ShieldCheck className="h-4 w-4" /> Incident Resolved
+              </Button>
+            )}
+
             <Button 
               variant="outline" 
               className="gap-2"
               onClick={handleGenerateReport}
             >
               <FileText className="h-4 w-4" /> Generate Incident Report
-            </Button>
-            <Button 
-              className={`gap-2 ${selectedIncident.status === 'resolved' ? "bg-success hover:bg-success/90" : ""}`}
-              onClick={handleResolve}
-              disabled={selectedIncident.status === 'resolved'}
-            >
-              {selectedIncident.status === 'resolved' ? (
-                <>
-                  <CheckCircle2 className="h-4 w-4" /> Incident Resolved
-                </>
-              ) : (
-                <>
-                  <ShieldCheck className="h-4 w-4" /> Resolve Incident
-                </>
-              )}
             </Button>
           </div>
         </div>

@@ -69,33 +69,43 @@ model SecurityContact {
 
   @@map("security_contact")
 }
+model Incident { 
+   id              String   @id @default(uuid()) 
+   deviceId        String 
+ 
+   // AI Results
+   aiClass         IncidentClass? @default(SUSPICIOUS)
+   aiConfidence    Float?    // e.g., 0.98
+   
+   // Evidence & Logic
+   videoPath       String?   // URL to video evidence
+   alertStatus     Boolean  @default(false) // true=thief, false=suspicious
+   
+   // Workflow Status
+   status          IncidentStatus @default(ACTIVE)
 
-model Incident {
-  id        String   @id @default(uuid())
-  deviceId  String
-  type      String
-  severity  String
-  status    String   @default("active")
-  time      DateTime @default(now())
-  motionStatus   String?
-  vibrationStatus String?
-  accelX         Float?
-  accelY         Float?
-  accelZ         Float?
-  accelStatus    String?
-  aiClass        String?
-  aiConfidence   Float?
-  alertStatus    String?
-  imagePath      String?
-  videoPath      String?
-  sourceNote     String?
-
-  device    Device   @relation(fields: [deviceId], references: [id])
-
-  @@index([deviceId])
-  @@map("incident")
+   // Timestamp
+   time            DateTime @default(now()) 
+ 
+   device          Device   @relation(fields: [deviceId], references: [id]) 
+ 
+   @@index([deviceId]) 
+   @@map("incident") 
 }
 
+enum IncidentClass {
+  SUSPICIOUS
+  THIEF
+  @@map("incident_class")
+}
+
+enum IncidentStatus {
+  ACTIVE
+  PENDING
+  SOLVED
+
+  @@map("incident_status")
+}
 model Location {
   id            Int    @id @default(autoincrement())
   province_name String @db.VarChar(100)

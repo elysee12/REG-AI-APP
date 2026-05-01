@@ -91,12 +91,12 @@ export function HQMapPage() {
   // Live Incident Feed
   const liveIncidents = useMemo(() => {
     return incidents
-      .filter(i => i.status !== "resolved")
       .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
       .slice(0, 10)
       .map(i => {
         const device = devicesWithDetails.find(d => d.id === i.deviceId);
-        return { ...i, device };
+        const severity = i.alertStatus ? 'critical' : 'warning';
+        return { ...i, device, severity };
       });
   }, [incidents, devicesWithDetails]);
 
@@ -111,7 +111,8 @@ export function HQMapPage() {
       setSelectedId(incident.device.id);
       setSelectedDevice(incident.device);
       // Automatically open details for critical incidents
-      if (incident.severity === 'critical' || incident.severity === 'high') {
+      const severity = incident.alertStatus ? 'critical' : 'warning';
+      if (severity === 'critical' || severity === 'high') {
         setIsDetailsOpen(true);
       }
     }

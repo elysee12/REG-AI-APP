@@ -32,9 +32,9 @@ export function BranchDashboardOverview() {
 
   const stats = useMemo(() => {
     const active = branchIncidents.filter(i => i.status === "active" || i.status === "pending").length;
-    const critical = branchIncidents.filter(i => i.severity === "critical" && i.status !== "resolved").length;
+    const critical = branchIncidents.filter(i => i.severity === "critical" && i.status !== "solved").length;
     const resolvedToday = branchIncidents.filter(i => {
-      const isResolved = i.status === "resolved";
+      const isResolved = i.status === "solved";
       const isToday = new Date(i.time).toDateString() === new Date().toDateString();
       return isResolved && isToday;
     }).length;
@@ -44,7 +44,7 @@ export function BranchDashboardOverview() {
   }, [branchIncidents, branchDevices]);
 
   const latestCritical = useMemo(() => 
-    branchIncidents.find(i => i.severity === "critical" && i.status !== "resolved"),
+    branchIncidents.find(i => i.severity === "critical" && i.status !== "solved"),
     [branchIncidents]
   );
 
@@ -193,8 +193,8 @@ export function BranchDashboardOverview() {
               </span>
             </div>
             <div className="grid grid-cols-2 gap-3 text-sm">
-              <SummaryRow label="Unacknowledged" value={String(branchIncidents.filter(i => i.status === 'pending').length)} tone="critical" />
-              <SummaryRow label="In progress" value={String(branchIncidents.filter(i => i.status === 'active').length)} tone="warning" />
+              <SummaryRow label="New Alerts" value={String(branchIncidents.filter(i => i.status === 'active').length)} tone="critical" />
+              <SummaryRow label="In progress" value={String(branchIncidents.filter(i => i.status === 'pending').length)} tone="warning" />
               <SummaryRow label="Latest site" value={branchIncidents[0]?.location.split(' · ')[0] || "N/A"} />
               <SummaryRow label="Buzzer state" value={stats.active > 0 ? "Active" : "Silent"} tone={stats.active > 0 ? "critical" : "default"} />
             </div>

@@ -83,7 +83,7 @@ export function HQDashboardOverview() {
   const resolutionStats = useMemo(() => {
     const total = filteredIncidents.length;
     if (total === 0) return { resolved: 0, rate: 0 };
-    const resolved = filteredIncidents.filter(i => i.status === "resolved").length;
+    const resolved = filteredIncidents.filter(i => i.status === "solved").length;
     const rate = ((resolved / total) * 100).toFixed(1);
     return { resolved, rate };
   }, [filteredIncidents]);
@@ -92,7 +92,7 @@ export function HQDashboardOverview() {
   const branchPerformance = useMemo(() => {
     return branches.map(b => {
       const bIncidents = incidents.filter(i => String(i.branchId) === String(b.id));
-      const bResolved = bIncidents.filter(i => i.status === "resolved").length;
+      const bResolved = bIncidents.filter(i => i.status === "solved").length;
       const resRate = bIncidents.length > 0 ? (bResolved / bIncidents.length * 100) : 100;
       return {
         id: b.id,
@@ -119,7 +119,7 @@ export function HQDashboardOverview() {
   // 6. High Severity Queue (HQ only sees High/Critical)
   const highSeverityQueue = useMemo(() => {
     return filteredIncidents
-      .filter(i => (i.severity === "critical" || i.severity === "high") && i.status !== "resolved")
+      .filter(i => (i.severity === "critical" || i.severity === "high") && i.status !== "solved")
       .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
       .slice(0, 5);
   }, [filteredIncidents]);
@@ -191,7 +191,7 @@ export function HQDashboardOverview() {
         <Kpi 
           icon={ShieldAlert} 
           label="Unresolved Threats" 
-          value={String(filteredIncidents.filter(i => i.status !== "resolved").length)} 
+          value={String(filteredIncidents.filter(i => i.status !== "solved").length)} 
           trend="Requires Attention" 
           tone="critical" 
         />

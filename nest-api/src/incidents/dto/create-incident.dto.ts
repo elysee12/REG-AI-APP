@@ -1,49 +1,24 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, IsBoolean, IsEnum } from 'class-validator';
+
+export enum IncidentClass {
+  SUSPICIOUS = 'SUSPICIOUS',
+  THIEF = 'THIEF',
+}
+
+export enum IncidentStatus {
+  ACTIVE = 'ACTIVE',
+  PENDING = 'PENDING',
+  SOLVED = 'SOLVED',
+}
 
 export class CreateIncidentDto {
   @IsString()
   @IsNotEmpty()
   deviceId: string;
 
-  @IsString()
-  @IsNotEmpty()
-  type: string;
-
-  @IsString()
-  @IsNotEmpty()
-  severity: string;
-
-  @IsString()
-  @IsNotEmpty()
-  status: string;
-
-  @IsString()
+  @IsEnum(IncidentClass)
   @IsOptional()
-  motionStatus?: string;
-
-  @IsString()
-  @IsOptional()
-  vibrationStatus?: string;
-
-  @IsNumber()
-  @IsOptional()
-  accelX?: number;
-
-  @IsNumber()
-  @IsOptional()
-  accelY?: number;
-
-  @IsNumber()
-  @IsOptional()
-  accelZ?: number;
-
-  @IsString()
-  @IsOptional()
-  accelStatus?: string;
-
-  @IsString()
-  @IsOptional()
-  aiClass?: string;
+  aiClass?: IncidentClass;
 
   @IsNumber()
   @IsOptional()
@@ -51,17 +26,13 @@ export class CreateIncidentDto {
 
   @IsString()
   @IsOptional()
-  alertStatus?: string;
-
-  @IsString()
-  @IsOptional()
-  imagePath?: string;
-
-  @IsString()
-  @IsOptional()
   videoPath?: string;
 
-  @IsString()
+  @IsBoolean()
   @IsOptional()
-  sourceNote?: string;
+  alertStatus?: boolean;
+
+  @IsEnum(IncidentStatus)
+  @IsOptional()
+  status?: IncidentStatus;
 }

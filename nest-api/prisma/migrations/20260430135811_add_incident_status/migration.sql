@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE `incident` ADD COLUMN `status` ENUM('ACTIVE', 'PENDING', 'SOLVED') NOT NULL DEFAULT 'ACTIVE';

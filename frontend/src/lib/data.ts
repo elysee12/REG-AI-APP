@@ -382,11 +382,17 @@ export const useDataStore = create<DataState>()(
               id: i.id,
               branchId: i.device?.branchId || i.branchId, // Ensure branchId is captured from the nested device
               location: `${i.device?.name || 'Unknown'} · ${i.device?.district || 'Unknown'}`,
-              severity: i.severity.toLowerCase(),
-              status: i.status.toLowerCase(),
               time: i.time,
               deviceId: i.deviceId,
-              deviceIp: i.device?.ipAddress
+              deviceIp: i.device?.ipAddress,
+              aiClass: i.aiClass,
+              aiConfidence: i.aiConfidence,
+              alertStatus: i.alertStatus,
+              videoPath: i.videoPath,
+              status: i.status.toLowerCase(), // ACTIVE, PENDING, SOLVED -> active, pending, solved
+              // Derived fields for UI compatibility
+              severity: i.alertStatus ? 'critical' : 'warning',
+              type: i.aiClass || 'AI Detection'
             })) });
           }
         } catch (error) { console.error('Fetch incidents error:', error); }
@@ -396,7 +402,13 @@ export const useDataStore = create<DataState>()(
         try {
           const response = await fetch(`${API_BASE}/incidents/${id}`, { headers: getHeaders() });
           if (response.ok) {
-            return await response.json();
+            const i = await response.json();
+            return {
+              ...i,
+              status: i.status?.toLowerCase() || 'active',
+              severity: i.alertStatus ? 'critical' : 'warning',
+              type: i.aiClass || 'AI Detection'
+            };
           }
           return null;
         } catch (error) { 
@@ -425,7 +437,7 @@ export const useDataStore = create<DataState>()(
           const response = await fetch(`${API_BASE}/incidents/${id}/status`, {
             method: 'PATCH',
             headers: getHeaders(),
-            body: JSON.stringify({ status }),
+            body: JSON.stringify({ status: status.toUpperCase() }),
           });
           if (response.ok) {
             await get().fetchIncidents();
