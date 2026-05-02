@@ -212,7 +212,10 @@ export function HQMapPage() {
                       </div>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="font-bold text-sm truncate">{i.device?.name || i.deviceId}</div>
+                      <div className="font-bold text-sm truncate">{i.deviceId}</div>
+                      <div className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                        <span className="font-mono text-[9px] text-primary font-bold uppercase tracking-wider bg-primary/10 px-1.5 py-0.5 rounded">{i.ticketId}</span>
+                      </div>
                       <div className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
                         <Building2 className="h-3 w-3" /> {i.device?.branchName || "Unknown Branch"}
                       </div>
@@ -255,9 +258,9 @@ export function HQMapPage() {
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <span className={`h-2.5 w-2.5 rounded-full ${selectedDevice?.status === 'online' ? 'bg-success' : 'bg-warning'}`} />
-                  <span className="font-mono text-xs text-muted-foreground uppercase tracking-widest">{selectedDevice?.id}</span>
+                  <span className="font-mono text-xs text-primary font-bold uppercase tracking-widest bg-primary/10 px-2 py-0.5 rounded">{selectedDevice?.id}</span>
                 </div>
-                <DialogTitle className="text-2xl font-bold">{selectedDevice?.name}</DialogTitle>
+                <DialogTitle className="text-2xl font-bold">{selectedDevice?.district} Station Area</DialogTitle>
                 <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-1">
                   <MapPin className="h-3.5 w-3.5" /> {selectedDevice?.location?.address}
                 </p>
@@ -276,7 +279,7 @@ export function HQMapPage() {
                 <div className="aspect-video bg-black rounded-xl overflow-hidden border border-border relative flex items-center justify-center group">
                   {selectedDevice?.ipAddress ? (
                     <iframe 
-                      src={`http://${selectedDevice.ipAddress}:5000/api/live-stream`} 
+                      src={`http://10.227.231.210:8000/stream`} 
                       className="w-full h-full border-0"
                       title="Tower Live Stream"
                     />

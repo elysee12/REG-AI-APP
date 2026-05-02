@@ -103,6 +103,7 @@ enum IncidentStatus {
   ACTIVE
   PENDING
   SOLVED
+  FALSE_ALARM
 
   @@map("incident_status")
 }

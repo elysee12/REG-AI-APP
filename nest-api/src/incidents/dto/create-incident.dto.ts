@@ -9,6 +9,7 @@ export enum IncidentStatus {
   ACTIVE = 'ACTIVE',
   PENDING = 'PENDING',
   SOLVED = 'SOLVED',
+  FALSE_ALARM = 'FALSE_ALARM',
 }
 
 export class CreateIncidentDto {

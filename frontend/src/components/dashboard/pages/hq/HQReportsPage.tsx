@@ -221,7 +221,7 @@ export function HQReportsPage() {
             trend="up" 
             trendValue="4.5%" 
             icon={CheckCircle2} 
-            desc="Alerts successfully closed"
+            desc="Alerts successfully RESOLVED"
           />
           <ScorecardItem 
             label="Avg. Response Time" 
@@ -361,7 +361,7 @@ export function HQReportsPage() {
               <h2 className="font-bold text-sm mb-4">Board Summary Stats</h2>
               <div className="space-y-3">
                 <SummaryMetric label="Total National Alerts" value={String(strategicStats.total)} />
-                <SummaryMetric label="Resolved Events" value={String(strategicStats.resolved)} />
+                <SummaryMetric label="RESOLVED Events" value={String(strategicStats.resolved)} />
                 <SummaryMetric label="Network Connectivity" value={`${((strategicStats.onlineDevices / (devices.length || 1)) * 100).toFixed(1)}%`} />
                 <SummaryMetric label="Report Integrity" value="High" />
               </div>

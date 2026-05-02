@@ -1,52 +1,80 @@
-import { Siren, ShieldAlert, Radio, Camera, CheckCircle2, MapPin, Bell, Send, FileText, Volume2 } from "lucide-react";
+import { Siren, ShieldAlert, Radio, Camera, CheckCircle2, MapPin, Bell, Send, FileText, Volume2, VolumeX, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/lib/auth";
 import { useDataStore } from "@/lib/data";
 import { useEffect, useMemo } from "react";
 import { Kpi, SeverityPill, StatusPill, SummaryRow, QuickAction, MiniMap } from "../../shared/DashboardComponents";
 import { useNavigate } from "@tanstack/react-router";
+import { toast } from "sonner";
 
 export function BranchDashboardOverview() {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
-  const { devices, incidents, fetchDevices, fetchIncidents } = useDataStore();
+  const { devices, incidents, securityContacts, fetchDevices, fetchIncidents, fetchSecurityContacts, isAlarmActive, setAlarmActive, stopAlarm } = useDataStore();
   
   useEffect(() => {
     fetchDevices();
+    fetchSecurityContacts();
     const branchId = user?.role === 'BRANCH_USER' && user.branchId ? String(user.branchId) : undefined;
     fetchIncidents(branchId);
-  }, [fetchDevices, fetchIncidents, user]);
+  }, [fetchDevices, fetchIncidents, fetchSecurityContacts, user]);
 
-  const branchDevices = useMemo(() => 
-    devices.filter(d => d.branchName === user?.branchName),
-    [devices, user?.branchName]
-  );
+  // Resolve assigned devices based on email mapping
+  const assignedDeviceIds = useMemo(() => {
+    if (!user || user.role === 'HQ_ADMIN') return [];
+    const contact = securityContacts.find(c => c.email.toLowerCase() === user.email.toLowerCase());
+    return contact?.devices?.map((d: any) => d.id) || [];
+  }, [user, securityContacts]);
+
+  const branchDevices = useMemo(() => {
+    if (user?.role !== 'BRANCH_USER' || !user.branchId) return devices;
+    return devices.filter(d => String(d.branchId) === String(user.branchId));
+  }, [devices, user?.role, user?.branchId]);
 
   const branchIncidents = useMemo(() => {
-    return incidents.filter(i => {
-      if (user?.role === "HQ_ADMIN") return true;
-      // Robust comparison using String() for both
-      return String(i.branchId) === String(user?.branchId);
-    });
-  }, [incidents, user?.branchId, user?.role]);
+    if (user?.role === 'HQ_ADMIN') return incidents;
+    return incidents.filter(i => String(i.branchId) === String(user?.branchId));
+  }, [incidents, user?.role, user?.branchId]);
+
+  const handleToggleAlarm = () => {
+    if (isAlarmActive) {
+      stopAlarm();
+      toast.info("Audible alarm has been manually silenced.");
+    } else {
+      setAlarmActive(true);
+    }
+  };
 
   const stats = useMemo(() => {
-    const active = branchIncidents.filter(i => i.status === "active" || i.status === "pending").length;
-    const critical = branchIncidents.filter(i => i.severity === "critical" && i.status !== "solved").length;
-    const resolvedToday = branchIncidents.filter(i => {
+    const filteredIncidents = user?.role === 'BRANCH_USER' && assignedDeviceIds.length > 0
+      ? branchIncidents.filter(i => assignedDeviceIds.includes(i.deviceId))
+      : branchIncidents;
+    
+    const filteredDevices = user?.role === 'BRANCH_USER' && assignedDeviceIds.length > 0
+      ? branchDevices.filter(d => assignedDeviceIds.includes(d.id))
+      : branchDevices;
+
+    const active = filteredIncidents.filter(i => i.status === "active" || i.status === "pending").length;
+    const critical = filteredIncidents.filter(i => i.severity === "critical" && i.status !== "solved").length;
+    const resolvedToday = filteredIncidents.filter(i => {
       const isResolved = i.status === "solved";
       const isToday = new Date(i.time).toDateString() === new Date().toDateString();
       return isResolved && isToday;
     }).length;
-    const onlineDevices = branchDevices.filter(d => d.status === "online").length;
+    const onlineDevices = filteredDevices.filter(d => d.status === "online").length;
 
     return { active, critical, resolvedToday, onlineDevices };
-  }, [branchIncidents, branchDevices]);
+  }, [branchIncidents, branchDevices, assignedDeviceIds, user?.role]);
 
-  const latestCritical = useMemo(() => 
-    branchIncidents.find(i => i.severity === "critical" && i.status !== "solved"),
-    [branchIncidents]
-  );
+  const latestCritical = useMemo(() => {
+    const filteredIncidents = user?.role === 'BRANCH_USER' && assignedDeviceIds.length > 0
+      ? branchIncidents.filter(i => assignedDeviceIds.includes(i.deviceId))
+      : branchIncidents;
+    
+    return [...filteredIncidents]
+      .filter(i => i.severity === "critical" && i.status !== "solved")
+      .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())[0];
+  }, [branchIncidents, assignedDeviceIds, user?.role]);
 
   const getRelativeTime = (dateString: string) => {
     const date = new Date(dateString);
@@ -74,13 +102,13 @@ export function BranchDashboardOverview() {
               <div className="min-w-0">
                 <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider">
                   <span className="h-2 w-2 rounded-full bg-primary-foreground blink" />
-                  BRANCH CRITICAL ALERT
+                  BRANCH CRITICAL ALERT — <span className="bg-primary-foreground/20 px-1.5 py-0.5 rounded">{latestCritical.ticketId}</span>
                 </div>
                 <div className="mt-1 text-lg md:text-xl font-bold truncate">
-                  {latestCritical.location}
+                  {latestCritical.deviceId}
                 </div>
                 <div className="text-sm text-primary-foreground/85">
-                  {latestCritical.type} · Detected {getRelativeTime(latestCritical.time)} · Severity: {latestCritical.severity.toUpperCase()}
+                  {latestCritical.location.split(' · ')[1]} Station Area · Detected {getRelativeTime(latestCritical.time)}
                 </div>
               </div>
             </div>
@@ -108,6 +136,44 @@ export function BranchDashboardOverview() {
         </div>
       )}
 
+      {/* Alarm Monitoring Control Panel */}
+      <div className={`rounded-xl border p-5 flex flex-col md:flex-row items-center justify-between gap-4 transition-all duration-500 ${isAlarmActive ? 'bg-primary/10 border-primary animate-pulse shadow-elevated' : 'bg-card border-border'}`}>
+        <div className="flex items-center gap-4">
+          <div className={`h-12 w-12 rounded-full flex items-center justify-center ${isAlarmActive ? 'bg-primary text-primary-foreground animate-bounce' : 'bg-secondary text-muted-foreground'}`}>
+            {isAlarmActive ? <Volume2 className="h-6 w-6" /> : <VolumeX className="h-6 w-6" />}
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="font-bold text-lg">Alarm Monitoring System</h2>
+              {isAlarmActive && <span className="bg-primary text-primary-foreground text-[10px] px-2 py-0.5 rounded-full font-bold animate-pulse">SOUNDING</span>}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {isAlarmActive 
+                ? "Continuous audible alert is active due to a HIGHLY SUSPICIOUS detection." 
+                : "Audible alarm system is standby. It will sound automatically on critical incidents."}
+            </p>
+          </div>
+        </div>
+        <div className="flex gap-3 shrink-0">
+          {isAlarmActive ? (
+            <Button 
+              onClick={handleToggleAlarm}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-11 px-6 shadow-lg gap-2"
+            >
+              <VolumeX className="h-4 w-4" /> STOP ALARM SOUND
+            </Button>
+          ) : (
+            <Button 
+              variant="outline"
+              className="border-border hover:bg-secondary h-11 px-6 gap-2 text-muted-foreground"
+              disabled
+            >
+              <CheckCircle2 className="h-4 w-4 text-success" /> SYSTEM STANDBY
+            </Button>
+          )}
+        </div>
+      </div>
+
       {/* KPI cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
         <Kpi icon={Siren} label="Active Incidents" value={String(stats.active)} trend="Live queue" tone={stats.active > 0 ? "critical" : "default"} />
@@ -115,7 +181,7 @@ export function BranchDashboardOverview() {
         <Kpi icon={MapPin} label="Sites Monitored" value={String(branchDevices.length)} trend="Assigned units" />
         <Kpi icon={Radio} label="Sensors Online" value={String(stats.onlineDevices)} trend={`${((stats.onlineDevices / (branchDevices.length || 1)) * 100).toFixed(0)}% uptime`} tone="success" />
         <Kpi icon={Camera} label="Active Units" value={String(branchDevices.filter(d => d.status === 'online').length)} trend="AI Monitoring" tone="success" />
-        <Kpi icon={CheckCircle2} label="Resolved Today" value={String(stats.resolvedToday)} trend="Total completions" tone="success" />
+        <Kpi icon={CheckCircle2} label="RESOLVED Today" value={String(stats.resolvedToday)} trend="Total completions" tone="success" />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
@@ -132,11 +198,11 @@ export function BranchDashboardOverview() {
             <table className="w-full text-sm">
               <thead className="text-xs uppercase text-muted-foreground bg-secondary/50">
                 <tr>
-                  <th className="text-left px-4 py-2.5 font-medium">ID</th>
+                  <th className="text-left px-4 py-2.5 font-medium">Ticket ID</th>
                   <th className="text-left px-4 py-2.5 font-medium">Time</th>
-                  <th className="text-left px-4 py-2.5 font-medium">Location</th>
-                  <th className="text-left px-4 py-2.5 font-medium">Type</th>
-                  <th className="text-left px-4 py-2.5 font-medium">Severity</th>
+                  <th className="text-left px-4 py-2.5 font-medium">Serial Number</th>
+                  <th className="text-left px-4 py-2.5 font-medium">Area</th>
+                  <th className="text-left px-4 py-2.5 font-medium">Classification</th>
                   <th className="text-left px-4 py-2.5 font-medium">Status</th>
                   <th className="text-right px-4 py-2.5 font-medium">Action</th>
                 </tr>
@@ -145,11 +211,13 @@ export function BranchDashboardOverview() {
                 {branchIncidents.length > 0 ? (
                   branchIncidents.slice(0, 6).map((item) => (
                     <tr key={item.id} className="border-t border-border hover:bg-secondary/40 transition-colors">
-                      <td className="px-4 py-3 font-mono text-xs font-bold text-primary">{item.id.split('-')[0]}</td>
+                      <td className="px-4 py-3">
+                        <span className="font-mono text-[10px] text-primary font-bold uppercase tracking-wider bg-primary/10 px-2 py-0.5 rounded">{item.ticketId}</span>
+                      </td>
                       <td className="px-4 py-3 text-muted-foreground tabular-nums">{getRelativeTime(item.time)}</td>
-                      <td className="px-4 py-3 font-medium truncate max-w-[150px]">{item.location}</td>
-                      <td className="px-4 py-3">{item.type}</td>
-                      <td className="px-4 py-3"><SeverityPill level={item.severity} /></td>
+                      <td className="px-4 py-3 font-mono text-xs font-bold text-primary">{item.deviceId}</td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">{item.location.split(' · ')[1]}</td>
+                      <td className="px-4 py-3 text-xs font-medium">{item.type}</td>
                       <td className="px-4 py-3"><StatusPill status={item.status} /></td>
                       <td className="px-4 py-3 text-right">
                         <Button 

@@ -47,8 +47,9 @@ export function StatusPill({ status }: { status: string }) {
     active: { c: "bg-primary text-primary-foreground", l: "Active" },
     pending: { c: "bg-warning text-warning-foreground", l: "Pending" },
     dispatched: { c: "bg-foreground text-background", l: "Dispatched" },
-    solved: { c: "bg-success text-success-foreground", l: "Solved" },
-    resolved: { c: "bg-success text-success-foreground", l: "Resolved" },
+    solved: { c: "bg-success text-success-foreground", l: "RESOLVED" },
+    resolved: { c: "bg-success text-success-foreground", l: "RESOLVED" },
+    false_alarm: { c: "bg-muted text-muted-foreground border border-border", l: "FALSE ALARM" },
   };
   const s = map[status] ?? map.pending;
   return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${s.c}`}>{s.l}</span>;

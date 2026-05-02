@@ -19,13 +19,19 @@ export class IncidentsService {
 
     // --- PERMANENT DEDUPLICATION LOGIC ---
     // Rule: One device can only have ONE "Active Session" (ACTIVE or PENDING) at a time.
+    // Window: 2 minutes. After 2 minutes, a new incident will be created.
     // This prevents the database from cluttering with redundant logs for the same tower.
+
+    const twoMinutesAgo = new Date(now.getTime() - 2 * 60 * 1000);
 
     const existingActiveIncident = await this.prisma.incident.findFirst({
       where: {
         deviceId,
         status: {
           in: [IncidentStatus.ACTIVE, IncidentStatus.PENDING],
+        },
+        time: {
+          gte: twoMinutesAgo,
         },
       },
       orderBy: { time: 'desc' },
@@ -42,7 +48,7 @@ export class IncidentsService {
           alertStatus: isEscalation ? true : existingActiveIncident.alertStatus,
           aiConfidence: createIncidentDto.aiConfidence ?? existingActiveIncident.aiConfidence,
           videoPath: createIncidentDto.videoPath ?? existingActiveIncident.videoPath,
-          // We keep the original 'time' to group everything under the first detection event
+          time: now, // Update time to current to extend the 2-minute window
         },
         include: {
           device: { include: { branch: true, securityContacts: true } },
@@ -50,7 +56,7 @@ export class IncidentsService {
       });
 
       // If it was just escalated to THIEF, trigger the email alert now
-      if (isEscalation && updatedIncident.device.securityContacts?.length > 0) {
+      if (isEscalation && updatedIncident.alertStatus && updatedIncident.device.securityContacts?.length > 0) {
         for (const contact of updatedIncident.device.securityContacts) {
           await this.mailService.sendIncidentAlertEmail(contact.email, contact.name, updatedIncident);
         }
@@ -70,6 +76,7 @@ export class IncidentsService {
     const incident = await this.prisma.incident.create({
       data: {
         ...createIncidentDto,
+        time: now, // Explicitly use local application time
         alertStatus: alertStatus ?? false,
         status: createIncidentDto.status || IncidentStatus.ACTIVE,
       },
@@ -81,16 +88,43 @@ export class IncidentsService {
           },
         },
       },
-    });
+    }) as any;
 
-    // Send email alert ONLY for new THIEF incidents
-    if (incident.aiClass === 'THIEF' && incident.device.securityContacts?.length > 0) {
+    // Send email alert ONLY for high-priority incidents
+    if (incident.alertStatus && incident.device?.securityContacts?.length > 0) {
       for (const contact of incident.device.securityContacts) {
         await this.mailService.sendIncidentAlertEmail(contact.email, contact.name, incident);
       }
     }
 
     return incident;
+  }
+
+  async findAssignedToUser(email: string) {
+    const contact = await this.prisma.securityContact.findFirst({
+      where: { email },
+      include: { devices: true },
+    });
+
+    if (!contact?.devices?.length) {
+      return [];
+    }
+
+    const deviceIds = contact.devices.map((device) => device.id);
+    return this.prisma.incident.findMany({
+      where: {
+        deviceId: { in: deviceIds },
+      },
+      orderBy: { time: 'desc' },
+      include: {
+        device: {
+          include: {
+            branch: true,
+            securityContacts: true,
+          },
+        },
+      },
+    });
   }
 
   async findAll() {
@@ -167,7 +201,7 @@ export class IncidentsService {
   async updateStatus(id: string, status: IncidentStatus) {
     return this.prisma.incident.update({
       where: { id },
-      data: { status },
+      data: { status: status as any },
       include: {
         device: {
           include: {
@@ -179,17 +213,22 @@ export class IncidentsService {
   }
 
   async updateVideoPath(id: string, videoPath: string) {
-    return this.prisma.incident.update({
-      where: { id },
-      data: { videoPath },
-      include: {
-        device: {
-          include: {
-            branch: true,
+    try {
+      return await this.prisma.incident.update({
+        where: { id },
+        data: { videoPath },
+        include: {
+          device: {
+            include: {
+              branch: true,
+            },
           },
         },
-      },
-    });
+      });
+    } catch (error) {
+      console.error(`[updateVideoPath] Failed to update video for incident ${id}: Record not found or database error.`);
+      return null;
+    }
   }
 
   async broadcastAlert(id: string, message: string) {
@@ -221,7 +260,7 @@ export class IncidentsService {
           );
           results.push({ email: contact.email, success: true });
         } catch (error) {
-          results.push({ email: contact.email, success: false, error: error.message });
+          results.push({ email: contact.email, success: false, error: (error as Error).message });
         }
       }
       return { success: true, broadcastResults: results };
@@ -256,7 +295,7 @@ export class IncidentsService {
           );
           results.push({ name: contact.name, phone: contact.phone, success });
         } catch (error) {
-          results.push({ name: contact.name, phone: contact.phone, success: false, error: error.message });
+          results.push({ name: contact.name, phone: contact.phone, success: false, error: (error as Error).message });
         }
       }
       return { success: true, whatsappResults: results };

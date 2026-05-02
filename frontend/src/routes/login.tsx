@@ -27,6 +27,7 @@ export const Route = createFileRoute("/login")({
 function LoginPage() {
   const navigate = useNavigate();
   const login = useAuthStore((state) => state.login);
+  const resetAlarmStopTimestamp = useDataStore((state) => state.resetAlarmStopTimestamp);
   
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -38,6 +39,7 @@ function LoginPage() {
     const success = await login(email, password);
     
     if (success) {
+      resetAlarmStopTimestamp();
       toast.success("Welcome back");
       navigate({ to: "/dashboard" });
     } else {

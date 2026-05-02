@@ -54,7 +54,7 @@ export function IncidentsPage() {
 
   const associatedDevice = devices.find(d => d.id === selectedIncident?.deviceId);
   const deviceIp = associatedDevice?.ipAddress || selectedIncident?.deviceIp || "172.22.13.126";
-  const streamUrl = `http://${deviceIp}:5000/api/live-stream`;
+  const streamUrl = `http://10.227.231.210:8000/stream`;
 
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
@@ -115,14 +115,15 @@ export function IncidentsPage() {
         <body>
           <div class="header">
             <h1>Incident Forensic Report</h1>
-            <div class="id">Report ID: ${selectedIncident.id}</div>
+            <div class="id">Ticket ID: ${selectedIncident.ticketId}</div>
+            <div class="id">System UUID: ${selectedIncident.id}</div>
             <div>Generated on: ${new Date().toLocaleString()}</div>
           </div>
           <div class="section">
-            <div class="label">AI Class:</div> ${selectedIncident.aiClass || 'N/A'}
+            <div class="label">AI Class:</div> ${selectedIncident.aiClass === 'THIEF' ? 'HIGHLY SUSPICIOUS' : (selectedIncident.aiClass || 'N/A')}
           </div>
           <div class="section">
-            <div class="label">Alert Status:</div> ${selectedIncident.alertStatus ? 'THIEF (Alert)' : 'SUSPICIOUS (Activity)'}
+            <div class="label">Alert Status:</div> ${selectedIncident.alertStatus ? 'HIGHLY SUSPICIOUS (Alert)' : 'SUSPICIOUS (Activity)'}
           </div>
           <div class="section">
             <div class="label">Confidence:</div> ${Math.round((selectedIncident.aiConfidence || 0) * 100)}%
@@ -131,10 +132,10 @@ export function IncidentsPage() {
             <div class="label">Time Detected:</div> ${formatTime(selectedIncident.time)}
           </div>
           <div class="section">
-            <div class="label">Location:</div> ${selectedIncident.location}
+            <div class="label">Location:</div> ${selectedIncident.location.split(' · ')[1]} Station Area
           </div>
           <div class="section">
-            <div class="label">Device ID:</div> ${selectedIncident.deviceId}
+            <div class="label">Serial Number:</div> ${selectedIncident.deviceId}
           </div>
           <div class="section">
             <div class="label">Device IP:</div> ${deviceIp}
@@ -183,13 +184,14 @@ export function IncidentsPage() {
               className={`w-full text-left p-4 hover:bg-secondary/60 transition-colors ${selectedId === i.id ? "bg-primary/5 border-l-2 border-l-primary" : ""}`}
             >
               <div className="flex items-center justify-between">
-                <span className="font-mono text-[10px] text-muted-foreground uppercase">{i.id.split('-')[0]}</span>
+                <span className="font-mono text-[10px] text-primary font-bold uppercase tracking-wider bg-primary/10 px-2 py-0.5 rounded">{i.ticketId}</span>
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${i.alertStatus ? "bg-primary text-primary-foreground" : "bg-warning text-warning-foreground"}`}>
-                  {i.alertStatus ? "THIEF" : "SUSPICIOUS"}
+                  {i.alertStatus ? "HIGHLY SUSPICIOUS" : "SUSPICIOUS"}
                 </span>
               </div>
-              <div className="mt-1 font-semibold text-sm">{i.location}</div>
-              <div className="text-xs text-muted-foreground mt-0.5">{i.aiClass || "AI Detection"}</div>
+              <div className="mt-2 font-bold text-sm text-foreground">{i.deviceId}</div>
+              <div className="text-[11px] text-muted-foreground mt-0.5">{i.location.split(' · ')[1]} Station Area</div>
+              <div className="text-xs text-muted-foreground mt-2 font-medium">{i.aiClass === 'THIEF' ? "HIGHLY SUSPICIOUS" : (i.aiClass || "AI Detection")}</div>
               <div className="mt-2 flex items-center gap-2 text-xs">
                 <Clock className="h-3 w-3 text-muted-foreground" />
                 <span className="text-muted-foreground">{getRelativeTime(i.time)}</span>
@@ -208,19 +210,19 @@ export function IncidentsPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${selectedIncident.alertStatus ? "bg-primary text-primary-foreground" : "bg-warning text-warning-foreground"}`}>
-                      {selectedIncident.alertStatus ? "THIEF" : "SUSPICIOUS"}
+                      {selectedIncident.alertStatus ? "HIGHLY SUSPICIOUS" : "SUSPICIOUS"}
                     </span>
-                    <span className="font-mono text-xs text-muted-foreground uppercase">{selectedIncident.id}</span>
+                    <span className="font-mono text-[10px] text-primary font-bold uppercase tracking-wider bg-primary/10 px-2 py-0.5 rounded">{selectedIncident.ticketId}</span>
                   </div>
-                  <h1 className="mt-2 text-xl font-bold">{selectedIncident.aiClass || "AI Detection"} — {selectedIncident.location.split(' · ')[0]}</h1>
+                  <h1 className="mt-2 text-xl font-bold">{selectedIncident.aiClass === 'THIEF' ? "HIGHLY SUSPICIOUS" : (selectedIncident.aiClass || "AI Detection")} — {selectedIncident.deviceId}</h1>
                   <p className="text-sm text-muted-foreground">{selectedIncident.location.split(' · ')[1]} Station Area</p>
                 </div>
                 <Button variant="ghost" size="icon" onClick={() => setSelectedId(null)}><X className="h-4 w-4" /></Button>
               </div>
               <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
                 <Meta label="Detection time" value={formatTime(selectedIncident.time)} />
-                <Meta label="AI Class" value={selectedIncident.aiClass || "N/A"} />
-                <Meta label="Alert Status" value={selectedIncident.alertStatus ? "THIEF" : "SUSPICIOUS"} />
+                <Meta label="AI Class" value={selectedIncident.aiClass === 'THIEF' ? "HIGHLY SUSPICIOUS" : (selectedIncident.aiClass || "N/A")} />
+                <Meta label="Alert Status" value={selectedIncident.alertStatus ? "HIGHLY SUSPICIOUS" : "SUSPICIOUS"} />
                 <Meta label="Confidence" value={`${Math.round((selectedIncident.aiConfidence || 0) * 100)}%`} />
                 <Meta label="Workflow Status" value={selectedIncident.status.toUpperCase()} />
                 <Meta label="Device ID" value={selectedIncident.deviceId} />
@@ -270,11 +272,21 @@ export function IncidentsPage() {
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-background text-center">
                     {selectedIncident.videoPath ? (
                       <video 
-                        src={`http://localhost:3000${selectedIncident.videoPath}`} 
+                        key={selectedIncident.videoPath}
                         controls 
                         className="w-full h-full object-contain"
                         autoPlay
-                      />
+                        muted
+                        playsInline
+                        preload="auto"
+                        crossOrigin="anonymous"
+                      >
+                        <source 
+                          src={`http://${window.location.hostname}:3000${selectedIncident.videoPath}`} 
+                          type="video/mp4" 
+                        />
+                        Your browser does not support the video tag.
+                      </video>
                     ) : (
                       <div className="p-6">
                         <Video className="h-12 w-12 text-primary/40 mb-3 mx-auto" />
@@ -319,7 +331,7 @@ export function IncidentsPage() {
                         </div>
                         <div className="flex justify-between border-b border-border/50 pb-1">
                           <span>T-50ms: AI Classification triggered</span>
-                          <span className="text-primary">{selectedIncident.aiClass || "Detection"}</span>
+                          <span className="text-primary">{selectedIncident.aiClass === 'THIEF' ? 'HIGHLY SUSPICIOUS' : (selectedIncident.aiClass || "Detection")}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>T-120ms: Local alarm broadcast</span>
@@ -341,10 +353,10 @@ export function IncidentsPage() {
                     <div className="space-y-4 text-sm leading-relaxed">
                       <p>
                         <span className="font-bold text-primary">Detection Analysis:</span> At {formatTime(selectedIncident.time)}, 
-                        AI Unit {selectedIncident.deviceId} identified high-probability <span className="font-bold text-primary">{selectedIncident.aiClass || "Unauthorized"}</span> behavior.
+                        AI Unit {selectedIncident.deviceId} identified high-probability <span className="font-bold text-primary">{selectedIncident.aiClass === 'THIEF' ? 'HIGHLY SUSPICIOUS' : (selectedIncident.aiClass || "Unauthorized")}</span> behavior.
                       </p>
                       <p>
-                        <span className="font-bold text-primary">Contextual Factors:</span> The pattern matches known <span className="font-bold text-primary">{selectedIncident.alertStatus ? 'THIEF' : 'SUSPICIOUS'}</span> signatures 
+                        <span className="font-bold text-primary">Contextual Factors:</span> The pattern matches known <span className="font-bold text-primary">{selectedIncident.alertStatus ? 'HIGHLY SUSPICIOUS' : 'SUSPICIOUS'}</span> signatures 
                         with <span className="text-primary font-bold">{Math.round((selectedIncident.aiConfidence || 0) * 100)}% confidence</span>. 
                       </p>
                       <div className="p-3 rounded border border-primary/20 bg-primary/5 text-xs">
@@ -381,7 +393,7 @@ export function IncidentsPage() {
                 className="gap-2 bg-success hover:bg-success/90 text-success-foreground"
                 onClick={() => handleUpdateStatus('solved')}
               >
-                <CheckCircle2 className="h-4 w-4" /> Mark as Solved
+                <CheckCircle2 className="h-4 w-4" /> Mark as RESOLVED
               </Button>
             )}
 
@@ -391,7 +403,7 @@ export function IncidentsPage() {
                 className="gap-2 border-success text-success hover:bg-success/10"
                 disabled
               >
-                <ShieldCheck className="h-4 w-4" /> Incident Resolved
+                <ShieldCheck className="h-4 w-4" /> Incident RESOLVED
               </Button>
             )}
 

@@ -91,7 +91,7 @@ export default function LeafletMap({
             <Popup className="custom-popup">
               <div className="p-1 min-w-[220px] bg-card text-card-foreground">
                 <div className="flex items-center justify-between mb-3 border-b border-border pb-2">
-                  <div className="font-bold text-sm truncate pr-2">{item.name || item.id}</div>
+                  <div className="font-mono font-bold text-sm text-primary truncate pr-2">{item.id}</div>
                   <div className={`h-2.5 w-2.5 rounded-full ${isVandalism ? 'bg-red-500 animate-pulse' : isOffline ? 'bg-yellow-500' : 'bg-green-500'}`} />
                 </div>
                 
@@ -99,7 +99,7 @@ export default function LeafletMap({
                   <div className="aspect-video bg-black rounded-md mb-3 overflow-hidden flex items-center justify-center text-[10px] text-white/50 italic border border-border group relative">
                     {item.ipAddress ? (
                       <iframe 
-                        src={`http://${item.ipAddress}:5000/api/live-stream`} 
+                        src={`http://10.227.231.210:8000/stream`} 
                         className="w-full h-full border-0"
                         title="Live Stream"
                       />

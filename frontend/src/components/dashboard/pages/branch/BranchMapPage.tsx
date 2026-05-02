@@ -179,7 +179,7 @@ export function BranchMapPage() {
                     {selectedDevice.incidentStatus === 'vandalism' ? (
                       <SeverityPill level="critical" />
                     ) : (
-                      <StatusPill status="resolved" />
+                      <StatusPill status="solved" />
                     )}
                     <span className="font-mono text-xs text-muted-foreground">{selectedDevice.id}</span>
                     <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${selectedDevice.status === 'online' ? 'bg-success/10 text-success' : 'bg-muted/10 text-muted-foreground'}`}>

@@ -30,7 +30,7 @@ export function BranchReportsPage() {
       const incidentDate = new Date(i.time).toISOString().split('T')[0];
       const matchesDate = incidentDate >= dateFrom && incidentDate <= dateTo;
       const matchesUnit = selectedUnit === "all" || i.deviceId === selectedUnit;
-      const matchesType = selectedType === "all" || i.type.toLowerCase().includes(selectedType.toLowerCase());
+      const matchesType = selectedType === "all" || i.type === selectedType;
       return matchesDate && matchesUnit && matchesType;
     });
   }, [incidents, dateFrom, dateTo, selectedUnit, selectedType]);
@@ -38,7 +38,7 @@ export function BranchReportsPage() {
   const stats = useMemo(() => {
     const total = filteredIncidents.length;
     const active = filteredIncidents.filter(i => i.status === "active" || i.status === "pending").length;
-    const resolved = filteredIncidents.filter(i => i.status === "resolved").length;
+    const resolved = filteredIncidents.filter(i => i.status === "solved").length;
     const resolutionRate = total > 0 ? ((resolved / total) * 100).toFixed(1) : "0.0";
     
     return { total, active, resolved, resolutionRate };
@@ -102,10 +102,10 @@ export function BranchReportsPage() {
             <select 
               value={selectedUnit}
               onChange={(e) => setSelectedUnit(e.target.value)}
-              className="block h-9 rounded-md border border-input bg-background px-3 text-xs min-w-[150px]"
+              className="block h-9 rounded-md border border-input bg-background px-3 text-xs min-w-[200px]"
             >
               <option value="all">All Branch Units</option>
-              {devices.filter(d => d.branchName === user?.branchName).map(d => (
+              {devices.filter(d => String(d.branchId) === String(user?.branchId)).map(d => (
                 <option key={d.id} value={d.id}>{d.id} - {d.name}</option>
               ))}
             </select>
@@ -118,10 +118,8 @@ export function BranchReportsPage() {
               className="block h-9 rounded-md border border-input bg-background px-3 text-xs min-w-[150px]"
             >
               <option value="all">All Incident Types</option>
-              <option value="Perimeter">Perimeter Breach</option>
-              <option value="Vibration">Vibration Anomaly</option>
-              <option value="Cable">Cable Cut Suspected</option>
-              <option value="Tamper">Camera Tampering</option>
+              <option value="HIGHLY SUSPICIOUS">HIGHLY SUSPICIOUS</option>
+              <option value="SUSPICIOUS">SUSPICIOUS</option>
             </select>
           </div>
         </div>
@@ -130,7 +128,7 @@ export function BranchReportsPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <UnitStat cardTitle="Branch Incidents" value={String(stats.total)} trend="Filtered Period" icon={AlertTriangle} />
         <UnitStat cardTitle="Active Alerts" value={String(stats.active)} trend="High Risk" icon={ShieldAlert} tone="critical" />
-        <UnitStat cardTitle="Successful Responded" value={String(stats.resolved)} trend={`${stats.resolutionRate}% rate`} icon={CheckCircle2} tone="success" />
+        <UnitStat cardTitle="Successful RESOLVED" value={String(stats.resolved)} trend={`${stats.resolutionRate}% rate`} icon={CheckCircle2} tone="success" />
       </div>
 
       <div className="bg-card border border-border rounded-xl shadow-card overflow-hidden">

@@ -157,56 +157,52 @@ export class MailService {
     const mapLink = `https://www.google.com/maps?q=${incident.device.lat},${incident.device.lng}`;
     
     const html = this.getHtmlContent(`
-      <h2 style="color: #EF1C25; margin: 0 0 24px; font-size: 22px; font-weight: 600;">CRITICAL: Incident Alert</h2>
+      <h2 style="color: #EF1C25; margin: 0 0 24px; font-size: 22px; font-weight: 600;">URGENT: Verified Security Incident</h2>
       <p style="color: #444444; margin: 0 0 20px; font-size: 15px; line-height: 1.6;">Dear <strong>${contactName}</strong>,</p>
-      <p style="color: #444444; margin: 0 0 20px; font-size: 15px; line-height: 1.6;">An incident has been detected on a device linked to your security profile. Immediate attention is required.</p>
+      <p style="color: #444444; margin: 0 0 20px; font-size: 15px; line-height: 1.6;">The Control Room has <strong>VERIFIED</strong> a <strong>HIGHLY SUSPICIOUS</strong> activity in progress at one of your assigned sites. Please respond immediately.</p>
       
       <div style="background-color: #f8f8f8; border-radius: 8px; padding: 20px; margin: 24px 0; border-left: 4px solid #EF1C25;">
-        <p style="margin: 0 0 12px; color: #666666; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">Incident Details</p>
+        <p style="margin: 0 0 12px; color: #666666; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">Incident Verification Details</p>
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
           <tr>
-            <td style="padding: 4px 0; color: #444444; font-size: 14px;"><strong>AI Classification:</strong></td>
-            <td style="padding: 4px 0; color: #444444; font-size: 14px; text-align: right;">${incident.aiClass || 'N/A'}</td>
+            <td style="padding: 4px 0; color: #444444; font-size: 14px;"><strong>Status:</strong></td>
+            <td style="padding: 4px 0; color: #EF1C25; font-size: 14px; text-align: right;"><strong>HIGHLY SUSPICIOUS (Verified)</strong></td>
+          </tr>
+          <tr>
+            <td style="padding: 4px 0; color: #444444; font-size: 14px;"><strong>Site:</strong></td>
+            <td style="padding: 4px 0; color: #444444; font-size: 14px; text-align: right;">${incident.device.name}</td>
+          </tr>
+          <tr>
+            <td style="padding: 4px 0; color: #444444; font-size: 14px;"><strong>Unit ID:</strong></td>
+            <td style="padding: 4px 0; color: #444444; font-size: 14px; text-align: right;">${incident.device.id}</td>
           </tr>
           <tr>
             <td style="padding: 4px 0; color: #444444; font-size: 14px;"><strong>Confidence:</strong></td>
             <td style="padding: 4px 0; color: #444444; font-size: 14px; text-align: right;">${incident.aiConfidence ? Math.round(incident.aiConfidence * 100) : '95'}%</td>
           </tr>
           <tr>
-            <td style="padding: 4px 0; color: #444444; font-size: 14px;"><strong>Alert Status:</strong></td>
-            <td style="padding: 4px 0; color: #444444; font-size: 14px; text-align: right;">${incident.alertStatus === true ? 'THIEF (Verified)' : 'SUSPICIOUS (Activity)'}</td>
-          </tr>
-          <tr>
-            <td style="padding: 4px 0; color: #444444; font-size: 14px;"><strong>Device:</strong></td>
-            <td style="padding: 4px 0; color: #444444; font-size: 14px; text-align: right;">${incident.device.name} (${incident.device.id})</td>
-          </tr>
-          <tr>
-            <td style="padding: 4px 0; color: #444444; font-size: 14px;"><strong>Time:</strong></td>
+            <td style="padding: 4px 0; color: #444444; font-size: 14px;"><strong>Verification Time:</strong></td>
             <td style="padding: 4px 0; color: #444444; font-size: 14px; text-align: right;">${new Date(incident.time).toLocaleString()}</td>
           </tr>
         </table>
       </div>
 
       <div style="background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 24px 0;">
-        <p style="margin: 0 0 12px; color: #666666; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">Location Information</p>
+        <p style="margin: 0 0 12px; color: #666666; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">Deployment Location</p>
         <div style="margin-bottom: 15px;">
-          <p style="margin: 0 0 5px; color: #444444; font-size: 14px;"><strong>Full Address:</strong></p>
+          <p style="margin: 0 0 5px; color: #444444; font-size: 14px;"><strong>Address:</strong></p>
           <p style="margin: 0; color: #666666; font-size: 13px; line-height: 1.4;">${incident.device.address}</p>
         </div>
-        <div style="margin-bottom: 15px;">
-          <p style="margin: 0 0 5px; color: #444444; font-size: 14px;"><strong>GPS Coordinates:</strong></p>
-          <p style="margin: 0; color: #666666; font-size: 13px; font-family: monospace;">${incident.device.lat}, ${incident.device.lng}</p>
-        </div>
         <div style="text-align: center; margin-top: 15px;">
-          <a href="${mapLink}" style="display: inline-block; color: #EF1C25; text-decoration: none; font-weight: 600; font-size: 14px; border: 1px solid #EF1C25; padding: 8px 16px; border-radius: 4px;">View on Google Maps</a>
+          <a href="${mapLink}" style="display: inline-block; color: #EF1C25; text-decoration: none; font-weight: 600; font-size: 14px; border: 1px solid #EF1C25; padding: 8px 16px; border-radius: 4px;">Open Navigation (Maps)</a>
         </div>
       </div>
 
       <div style="text-align: center; margin: 32px 0;">
-        <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard/response?incidentId=${incident.id}" style="display: inline-block; background: linear-gradient(135deg, #EF1C25 0%, #C8101A 100%); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-weight: 600; font-size: 15px;">Access Incident Dashboard</a>
+        <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard/response?incidentId=${incident.id}" style="display: inline-block; background: linear-gradient(135deg, #EF1C25 0%, #C8101A 100%); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-weight: 600; font-size: 15px;">Acknowledge & Respond</a>
       </div>
       
-      <p style="color: #888888; margin: 0; font-size: 13px; line-height: 1.6;">Please take immediate action as per the standard security protocol.</p>
+      <p style="color: #EF1C25; margin: 0; font-size: 14px; line-height: 1.6; font-weight: bold; text-align: center;">PLEASE RESPOND IMMEDIATELY TO THE SITE.</p>
     `);
 
     try {

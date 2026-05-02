@@ -79,6 +79,7 @@ interface DataState {
 
   incidents: any[];
   fetchIncidents: (branchId?: string, deviceId?: string) => Promise<void>;
+  fetchAssignedIncidents: () => Promise<void>;
   fetchIncidentById: (id: string) => Promise<any>;
   addIncident: (incident: any) => Promise<boolean>;
   updateIncidentStatus: (id: string, status: string) => Promise<boolean>;
@@ -97,6 +98,13 @@ interface DataState {
   resetPassword: (payload: { email: string; otp: string; newPassword: string }) => Promise<{ success: boolean; message: string }>;
   requestPasswordChange: (currentPassword: string) => Promise<{ success: boolean; message: string }>;
   changePasswordWithOtp: (payload: { currentPassword: string; otp: string; newPassword: string }) => Promise<{ success: boolean; message: string }>;
+
+  // Alarm Control
+  isAlarmActive: boolean;
+  setAlarmActive: (active: boolean) => void;
+  lastAlarmStopTimestamp: number;
+  stopAlarm: () => void;
+  resetAlarmStopTimestamp: () => void;
 }
 
 const API_BASE = 'http://localhost:3000/api';
@@ -119,6 +127,11 @@ export const useDataStore = create<DataState>()(
       incidents: [],
       securityContacts: [],
       isLoading: false,
+      isAlarmActive: false,
+      lastAlarmStopTimestamp: 0,
+      setAlarmActive: (active) => set({ isAlarmActive: active }),
+      stopAlarm: () => set({ isAlarmActive: false, lastAlarmStopTimestamp: Date.now() }),
+      resetAlarmStopTimestamp: () => set({ lastAlarmStopTimestamp: 0 }),
 
       fetchUsers: async () => {
         try {
@@ -380,8 +393,10 @@ export const useDataStore = create<DataState>()(
             set({ incidents: data.map((i: any) => ({
               ...i,
               id: i.id,
+              ticketId: `INC-${i.id.split('-')[0].toUpperCase()}`,
               branchId: i.device?.branchId || i.branchId, // Ensure branchId is captured from the nested device
-              location: `${i.device?.name || 'Unknown'} · ${i.device?.district || 'Unknown'}`,
+              location: `${i.deviceId} · ${i.device?.district || 'Unknown'}`,
+              deviceName: i.device?.name || 'Unknown',
               time: i.time,
               deviceId: i.deviceId,
               deviceIp: i.device?.ipAddress,
@@ -392,7 +407,34 @@ export const useDataStore = create<DataState>()(
               status: i.status.toLowerCase(), // ACTIVE, PENDING, SOLVED -> active, pending, solved
               // Derived fields for UI compatibility
               severity: i.alertStatus ? 'critical' : 'warning',
-              type: i.aiClass || 'AI Detection'
+              type: i.alertStatus ? 'HIGHLY SUSPICIOUS' : (i.aiClass?.toString().trim().toUpperCase() === 'THIEF' ? 'HIGHLY SUSPICIOUS' : (i.aiClass || 'AI Detection'))
+            })) });
+          }
+        } catch (error) { console.error('Fetch incidents error:', error); }
+      },
+
+      fetchAssignedIncidents: async () => {
+        try {
+          const response = await fetch(`${API_BASE}/incidents/assigned`, { headers: getHeaders() });
+          if (response.ok) {
+            const data = await response.json();
+            set({ incidents: data.map((i: any) => ({
+              ...i,
+              id: i.id,
+              ticketId: `INC-${i.id.split('-')[0].toUpperCase()}`,
+              branchId: i.device?.branchId || i.branchId,
+              location: `${i.deviceId} · ${i.device?.district || 'Unknown'}`,
+              deviceName: i.device?.name || 'Unknown',
+              time: i.time,
+              deviceId: i.deviceId,
+              deviceIp: i.device?.ipAddress,
+              aiClass: i.aiClass,
+              aiConfidence: i.aiConfidence,
+              alertStatus: i.alertStatus,
+              videoPath: i.videoPath,
+              status: i.status.toLowerCase(),
+              severity: i.alertStatus ? 'critical' : 'warning',
+              type: i.alertStatus ? 'HIGHLY SUSPICIOUS' : (i.aiClass?.toString().trim().toUpperCase() === 'THIEF' ? 'HIGHLY SUSPICIOUS' : (i.aiClass || 'AI Detection'))
             })) });
           }
         } catch (error) { console.error('Fetch incidents error:', error); }
@@ -405,6 +447,7 @@ export const useDataStore = create<DataState>()(
             const i = await response.json();
             return {
               ...i,
+              ticketId: `INC-${i.id.split('-')[0].toUpperCase()}`,
               status: i.status?.toLowerCase() || 'active',
               severity: i.alertStatus ? 'critical' : 'warning',
               type: i.aiClass || 'AI Detection'
@@ -615,6 +658,11 @@ export const useDataStore = create<DataState>()(
         }
       },
     }),
-    { name: 'data-storage' }
+    { 
+      name: 'data-storage',
+      partialize: (state) => Object.fromEntries(
+        Object.entries(state).filter(([key]) => !['isAlarmActive'].includes(key))
+      ),
+    }
   )
 );

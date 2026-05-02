@@ -23,25 +23,28 @@ export function ResponsePage() {
         setIncident(data);
         if (data) {
           const professionalMessage = 
-`🚨 *CRITICAL SECURITY ALERT*
+`🚨 *URGENT SECURITY NOTIFICATION*
 
-*Incident Type:* ${data.type}
-*AI Class:* ${data.aiClass || 'N/A'}
-*Alert Status:* ${data.alertStatus === true ? 'THIEF (Alert)' : 'SUSPICIOUS (Activity)'}
+The Control Room has *VERIFIED* a *HIGHLY SUSPICIOUS* activity in progress.
+
+*Incident Details:*
+*Ticket ID:* ${data.ticketId}
+*Classification:* HIGHLY SUSPICIOUS
 *Confidence:* ${data.aiConfidence ? Math.round(data.aiConfidence * 100) : '95'}%
 *Unit ID:* ${data.device.id}
-*Severity:* ${data.severity.toUpperCase()}
+*Site:* ${data.device.district} Station Area
 
-📍 *Location Details:*
+📍 *Location:*
 *Address:* ${data.device.address}
 *GPS:* ${data.device.lat}, ${data.device.lng}
 
-🗺️ *View on Map:*
+⚠️ *INSTRUCTION:*
+Respond immediately to the site. This is a verified priority alert.
+
+🗺️ *Google Maps:*
 https://www.google.com/maps?q=${data.device.lat},${data.device.lng}
 
-⚠️ *Action Required:*
-Please respond immediately. Access the dashboard for live updates:
-${window.location.origin}/dashboard/response?incidentId=${data.id}`;
+*Dashboard:* ${window.location.origin}/dashboard/response?incidentId=${data.id}`;
           
           setBroadcastMessage(professionalMessage);
         }
@@ -127,12 +130,16 @@ ${window.location.origin}/dashboard/response?incidentId=${data.id}`;
             </h3>
             <div className="space-y-2.5 text-sm">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Serial Number:</span>
-                <span className="font-mono font-bold uppercase">{incident.device.id}</span>
+                <span className="text-muted-foreground">Ticket ID:</span>
+                <span className="font-mono text-primary font-bold uppercase tracking-wider bg-primary/10 px-2 py-0.5 rounded">{incident.ticketId}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Device Name:</span>
-                <span className="font-medium">{incident.device.name}</span>
+                <span className="text-muted-foreground">Serial Number (Device ID):</span>
+                <span className="font-mono font-bold uppercase text-primary">{incident.device.id}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Station Area:</span>
+                <span className="font-medium">{incident.device.district} Station</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Live Status:</span>
@@ -284,8 +291,8 @@ ${window.location.origin}/dashboard/response?incidentId=${data.id}`;
         <h2 className="font-semibold flex items-center gap-2 mb-4"><Bell className="h-4 w-4 text-primary" />Incident Timeline</h2>
         <div className="relative border-l border-primary/30 ml-2 space-y-6 pl-6 pb-2">
           {[
-            { t: new Date(incident.time).toLocaleTimeString(), title: `Incident detected: ${incident.type}`, who: "System", desc: `AI classified as ${incident.aiClass || incident.type} with ${incident.aiConfidence ? Math.round(incident.aiConfidence * 100) : '95'}% confidence.` },
-            { t: new Date(incident.time).toLocaleTimeString(), title: "Automated alert dispatched", who: "System", desc: `Notification (${incident.alertStatus ? 'THIEF' : 'SUSPICIOUS'}) sent to linked security personnel.` },
+            { t: new Date(incident.time).toLocaleTimeString(), title: `Incident detected: ${incident.ticketId}`, who: "System", desc: `AI classified as ${incident.aiClass === 'THIEF' ? 'HIGHLY SUSPICIOUS' : (incident.aiClass || incident.type)} with ${incident.aiConfidence ? Math.round(incident.aiConfidence * 100) : '95'}% confidence.` },
+            { t: new Date(incident.time).toLocaleTimeString(), title: "Automated alert dispatched", who: "System", desc: `Notification (${incident.alertStatus ? 'HIGHLY SUSPICIOUS' : 'SUSPICIOUS'}) sent to linked security personnel.` },
           ].map((e, i) => (
             <div key={i} className="relative">
               <span className="absolute -left-[31px] top-0 h-2.5 w-2.5 rounded-full bg-primary ring-4 ring-primary/10" />
@@ -309,7 +316,7 @@ ${window.location.origin}/dashboard/response?incidentId=${data.id}`;
                 incident.aiClass === 'THIEF' ? 'text-primary' :
                 incident.aiClass === 'SUSPICIOUS' ? 'text-warning' : 'text-success'
               }`}>
-                {incident.aiClass || 'NORMAL'}
+                {incident.aiClass === 'THIEF' ? 'HIGHLY SUSPICIOUS' : (incident.aiClass || 'NORMAL')}
               </span>
             </div>
             <div className="flex justify-between">

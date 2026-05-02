@@ -1,7 +1,7 @@
 import { Bell, Search, ShieldCheck, User, Mail, Building, MapPin, Edit2, Save, X, CheckCircle2, Clock as ClockIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { NoSsr } from "../ui/no-ssr";
-import { memo, useEffect, useState, useMemo } from "react";
+import { memo, useEffect, useState, useMemo, useRef } from "react";
 import { useAuthStore } from "@/lib/auth";
 import { useDataStore } from "@/lib/data";
 import {
@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { useNavigate } from "@tanstack/react-router";
 
 interface HeaderProps {
   title: string;
@@ -49,13 +50,17 @@ const Clock = memo(function Clock() {
 });
 
 export function Header({ title }: HeaderProps) {
+  const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
   const updateUserInDataStore = useDataStore((state) => state.updateUser);
+  const { isAlarmActive, setAlarmActive, lastAlarmStopTimestamp } = useDataStore();
   
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const alarmAudio = useRef<HTMLAudioElement | null>(null);
+  // Remove prevIncidentCount as we'll use timestamp-based logic
   
   const [profileData, setProfileData] = useState({
     fullName: user?.fullName || "",
@@ -83,40 +88,134 @@ export function Header({ title }: HeaderProps) {
     }
   };
 
-  const { incidents, fetchIncidents } = useDataStore();
+  const { incidents, fetchIncidents, fetchAssignedIncidents, securityContacts, fetchSecurityContacts } = useDataStore();
 
   useEffect(() => {
-    fetchIncidents();
-    // Refresh incidents every 30 seconds for live notifications
-    const interval = setInterval(() => fetchIncidents(), 30000);
+    // Initialize alarm audio
+    const audio = new Audio("https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg");
+    audio.loop = true;
+    alarmAudio.current = audio;
+
+    return () => {
+      audio.pause();
+      audio.currentTime = 0;
+      alarmAudio.current = null;
+    };
+  }, []);
+
+  // Sync audio play/pause with global state
+  useEffect(() => {
+    const audio = alarmAudio.current;
+    if (!audio) return;
+
+    if (isAlarmActive) {
+      console.log("Playing alarm audio");
+      audio.play().catch(e => {
+        console.error("Error playing alarm:", e);
+        if (e.name === 'NotAllowedError') {
+          toast.warning("Audio playback blocked. Please click anywhere on the page to enable the alarm sound.", {
+            id: "audio-blocked",
+            duration: 5000
+          });
+        }
+      });
+    } else {
+      console.log("Pausing alarm audio");
+      audio.pause();
+      audio.currentTime = 0;
+    }
+  }, [isAlarmActive]);
+
+  useEffect(() => {
+    const branchId = user?.role === 'BRANCH_USER' && user.branchId ? String(user.branchId) : undefined;
+    fetchIncidents(branchId);
+    fetchSecurityContacts();
+    // Refresh incidents every 10 seconds for live notifications
+    const interval = setInterval(() => {
+      fetchIncidents(branchId);
+      fetchSecurityContacts();
+    }, 10000);
     return () => clearInterval(interval);
-  }, [fetchIncidents]);
+  }, [fetchIncidents, fetchSecurityContacts, user?.role, user?.branchId]);
+
+  // Resolve assigned devices based on email mapping
+  const assignedDeviceIds = useMemo(() => {
+    if (!user || user.role === 'HQ_ADMIN') return [];
+    
+    // Find the security contact that matches the logged-in user's email
+    const contact = securityContacts.find(c => c.email.toLowerCase() === user.email.toLowerCase());
+    if (!contact || !contact.devices) return [];
+    
+    return contact.devices.map((d: any) => d.id);
+  }, [user, securityContacts]);
+
+  const isIncidentAssignedOrBranch = (incident: any) => {
+    if (!user || user.role === 'HQ_ADMIN') return false;
+    if (assignedDeviceIds.length > 0) {
+      return assignedDeviceIds.includes(incident.deviceId);
+    }
+    if (user.role === 'BRANCH_USER') {
+      return String(incident.branchId) === String(user.branchId);
+    }
+    return false;
+  };
+
+  // Handle Alarm sound for HIGHLY SUSPICIOUS (Branch Users Only - Assigned Devices or Branch)
+  useEffect(() => {
+    if (!user || user.role === 'HQ_ADMIN' || !incidents) return;
+
+    const hasActiveThreat = incidents.some(i => {
+      const isHighlySuspicious = i.alertStatus === true || i.aiClass?.toString().trim().toUpperCase() === 'THIEF';
+      const isAssignedOrBranch = isIncidentAssignedOrBranch(i);
+      const isActiveIncident = i.status === 'active' || i.status === 'pending';
+      const isNewerThanStop = new Date(i.time).getTime() > lastAlarmStopTimestamp;
+      return isHighlySuspicious && isAssignedOrBranch && isActiveIncident && isNewerThanStop;
+    });
+    
+    if (hasActiveThreat && !isAlarmActive) {
+      setAlarmActive(true);
+      toast.error("HIGHLY SUSPICIOUS INCIDENT DETECTED!", {
+        duration: 10000,
+        description: "Priority response required immediately."
+      });
+    } else if (!hasActiveThreat && isAlarmActive) {
+      // Auto-deactivate if no more active threats exist
+      setAlarmActive(false);
+    }
+  }, [incidents, isAlarmActive, setAlarmActive, user, assignedDeviceIds, lastAlarmStopTimestamp]);
 
   const dynamicNotifications = useMemo(() => {
     if (!incidents || incidents.length === 0) return [];
 
     return incidents
       .filter((incident) => {
-        // HQ Admin: Only show if AI Confidence > 90%
+        // HQ Admin: Only show if AI Confidence > 90% (but hidden in UI rendering anyway)
         if (user?.role === "HQ_ADMIN") {
           return incident.aiConfidence >= 0.9;
         }
-        // Branch Manager: Only show if incident belongs to their branch
-        if (user?.role === "BRANCH_MANAGER") {
-          return String(incident.branchId) === String(user.branchId);
-        }
-        return true;
+        
+        const isHighlySuspicious = incident.alertStatus === true || incident.aiClass?.toString().trim().toUpperCase() === 'THIEF';
+        return isHighlySuspicious && isIncidentAssignedOrBranch(incident);
       })
       .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
       .slice(0, 5) // Show top 5 latest
       .map((incident) => ({
         id: incident.id,
-        title: incident.type,
+        title: incident.alertStatus ? 'HIGHLY SUSPICIOUS' : (incident.aiClass?.toString().trim().toUpperCase() === 'THIEF' ? 'HIGHLY SUSPICIOUS' : (incident.aiClass || 'AI Detection')),
         message: `${incident.severity.toUpperCase()} severity incident at ${incident.location}`,
         time: new Date(incident.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        type: incident.severity === 'critical' ? 'warning' : 'info'
+        type: incident.severity === 'critical' ? 'warning' : 'info',
+        incidentId: incident.id
       }));
-  }, [incidents, user]);
+  }, [incidents, user, assignedDeviceIds]);
+
+  const handleNotificationClick = (incidentId: string) => {
+    setIsNotificationsOpen(false);
+    navigate({ 
+      to: "/dashboard/incidents", 
+      search: { incidentId } as any
+    });
+  };
 
   return (
     <header className="h-16 shrink-0 border-b border-border bg-card flex items-center gap-4 px-4 md:px-6">
@@ -142,13 +241,15 @@ export function Header({ title }: HeaderProps) {
         </div>
 
         <NoSsr>
-          <button
-            onClick={() => setIsNotificationsOpen(true)}
-            className="relative p-2 rounded-md hover:bg-secondary transition-colors"
-          >
-            <Bell className="h-5 w-5 text-foreground" />
-            <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-primary blink" />
-          </button>
+          {user?.role !== 'HQ_ADMIN' && (
+            <button
+              onClick={() => setIsNotificationsOpen(true)}
+              className="relative p-2 rounded-md hover:bg-secondary transition-colors"
+            >
+              <Bell className="h-5 w-5 text-foreground" />
+              <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-primary blink" />
+            </button>
+          )}
         </NoSsr>
 
         <div 
@@ -278,7 +379,11 @@ export function Header({ title }: HeaderProps) {
           <div className="max-h-[400px] overflow-y-auto bg-card">
             {dynamicNotifications.length > 0 ? (
               dynamicNotifications.map((n) => (
-                <div key={n.id} className="p-4 border-b border-border last:border-0 hover:bg-secondary/30 transition-colors cursor-pointer group">
+                <div 
+                  key={n.id} 
+                  className="p-4 border-b border-border last:border-0 hover:bg-secondary/30 transition-colors cursor-pointer group"
+                  onClick={() => handleNotificationClick(n.incidentId)}
+                >
                   <div className="flex gap-3">
                     <div className={`h-8 w-8 rounded-full shrink-0 flex items-center justify-center ${
                       n.type === 'success' ? 'bg-success/10 text-success' : 

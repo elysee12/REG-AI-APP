@@ -185,7 +185,7 @@ export function HQDashboardOverview() {
           icon={CheckCircle2} 
           label="National Resolution Rate" 
           value={`${resolutionStats.rate}%`} 
-          trend={`${resolutionStats.resolved} Issues Fixed`} 
+          trend={`${resolutionStats.resolved} Issues RESOLVED`} 
           tone="success" 
         />
         <Kpi 
@@ -329,8 +329,8 @@ export function HQDashboardOverview() {
             <table className="w-full text-sm">
               <thead className="text-[10px] uppercase text-muted-foreground bg-secondary/50">
                 <tr>
-                  <th className="text-left px-4 py-2 font-medium">ID</th>
-                  <th className="text-left px-4 py-2 font-medium">Location</th>
+                  <th className="text-left px-4 py-2 font-medium">Ticket ID</th>
+                  <th className="text-left px-4 py-2 font-medium">Serial Number</th>
                   <th className="text-left px-4 py-2 font-medium">Severity</th>
                   <th className="text-left px-4 py-2 font-medium">Time</th>
                   <th className="text-right px-4 py-2 font-medium">Status</th>
@@ -340,10 +340,12 @@ export function HQDashboardOverview() {
                 {highSeverityQueue.length > 0 ? (
                   highSeverityQueue.map((i) => (
                     <tr key={i.id} className="border-t border-border hover:bg-secondary/40 transition-colors">
-                      <td className="px-4 py-3 font-mono text-xs uppercase text-muted-foreground">{i.id.split('-')[0]}</td>
-                      <td className="px-4 py-3 font-medium">{i.location}</td>
+                      <td className="px-4 py-3">
+                        <span className="font-mono text-[10px] text-primary font-bold uppercase tracking-wider bg-primary/10 px-2 py-0.5 rounded">{i.ticketId}</span>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs font-bold text-primary">{i.deviceId}</td>
                       <td className="px-4 py-3"><SeverityPill level={i.severity} /></td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground">{new Date(i.time).toLocaleTimeString()}</td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground tabular-nums">{new Date(i.time).toLocaleTimeString()}</td>
                       <td className="px-4 py-3 text-right"><StatusPill status={i.status} /></td>
                     </tr>
                   ))

@@ -20,6 +20,7 @@ export function QueuePage() {
   const [selectedIncident, setSelectedIncident] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [selectedIncidents, setSelectedIncidents] = useState<string[]>([]);
 
   useEffect(() => {
     fetchDevices();
@@ -39,16 +40,31 @@ export function QueuePage() {
       const matchesSearch = search === "" || 
         incident.id.toLowerCase().includes(search.toLowerCase()) ||
         incident.location.toLowerCase().includes(search.toLowerCase()) ||
-        (incident.aiClass || "").toLowerCase().includes(search.toLowerCase());
+        (incident.aiClass?.toString().trim().toUpperCase() === 'THIEF' ? "highly suspicious" : (incident.aiClass || "")).toLowerCase().includes(search.toLowerCase()) ||
+        (incident.alertStatus ? "highly suspicious" : "suspicious").toLowerCase().includes(search.toLowerCase());
       
       if (!matchesSearch) return false;
 
-      // Filter by status
+      // Filter by status (tabs)
       if (statusFilter !== "all" && incident.status !== statusFilter) return false;
+
+      // Active button filters
+      if (activeFilters.length > 0) {
+        const statusMap: Record<string, string> = {
+          "False Alarm": "false_alarm",
+          "In Progress": "pending",
+          "Acknowledgment": "active" // Assuming acknowledgment means active but seen
+        };
+        
+        const matchingStatus = activeFilters.map(f => statusMap[f]).filter(Boolean);
+        if (matchingStatus.length > 0 && !matchingStatus.includes(incident.status)) {
+          return false;
+        }
+      }
 
       return true;
     });
-  }, [incidents, search, statusFilter]);
+  }, [incidents, search, statusFilter, activeFilters]);
 
   const handleOpenDetail = (incident: any) => {
     setSelectedIncident(incident);
@@ -66,6 +82,37 @@ export function QueuePage() {
       toast.error("Failed to update status");
     }
     setIsUpdatingStatus(false);
+  };
+
+  const handleBatchStatusChange = async (newStatus: string) => {
+    if (selectedIncidents.length === 0) return;
+    setIsUpdatingStatus(true);
+    let successCount = 0;
+    for (const id of selectedIncidents) {
+      const success = await updateIncidentStatus(id, newStatus);
+      if (success) successCount++;
+    }
+    if (successCount > 0) {
+      toast.success(`Updated ${successCount} incidents to ${newStatus}`);
+      setSelectedIncidents([]);
+    } else {
+      toast.error("Failed to update incidents");
+    }
+    setIsUpdatingStatus(false);
+  };
+
+  const toggleSelectIncident = (id: string) => {
+    setSelectedIncidents(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIncidents.length === filteredIncidents.length) {
+      setSelectedIncidents([]);
+    } else {
+      setSelectedIncidents(filteredIncidents.map(i => i.id));
+    }
   };
 
   const associatedDevice = selectedIncident ? devices.find(d => d.id === selectedIncident.deviceId) : null;
@@ -90,14 +137,14 @@ export function QueuePage() {
                 onClick={() => setStatusFilter(s)}
                 className={`px-4 py-1.5 rounded-md text-xs font-medium transition-all ${statusFilter === s ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
               >
-                {s.charAt(0).toUpperCase() + s.slice(1)}
+                {s === "solved" ? "RESOLVED" : s.charAt(0).toUpperCase() + s.slice(1)}
               </button>
             ))}
           </div>
           <Button variant="outline" size="sm"><Download className="h-4 w-4 mr-2" />Export</Button>
         </div>
         <div className="px-4 py-2 flex flex-wrap gap-2 border-b border-border bg-secondary/40 text-xs">
-          {["False Alarm", "Closed Incident", "Acknowledgment", "In Progress"].map((t) => (
+          {["False Alarm", "Acknowledgment", "In Progress"].map((t) => (
             <button 
               key={t} 
               onClick={() => toggleFilter(t)}
@@ -111,7 +158,13 @@ export function QueuePage() {
           <table className="w-full text-sm">
             <thead className="text-xs uppercase text-muted-foreground bg-secondary/40">
               <tr>
-                <th className="px-4 py-2.5 w-10"><Checkbox /></th>
+                <th className="px-4 py-2.5 w-10">
+                  <Checkbox 
+                    checked={filteredIncidents.length > 0 && selectedIncidents.length === filteredIncidents.length}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                </th>
+                <th className="text-left px-4 py-2.5 font-medium">Ticket ID</th>
                 <th className="text-left px-4 py-2.5 font-medium">Alert Status</th>
                 <th className="text-left px-4 py-2.5 font-medium">Incident Status</th>
                 <th className="text-left px-4 py-2.5 font-medium">Device ID</th>
@@ -126,10 +179,18 @@ export function QueuePage() {
               {filteredIncidents.length > 0 ? (
                 filteredIncidents.map((r) => (
                   <tr key={r.id} className="border-t border-border hover:bg-secondary/40 transition-colors">
-                    <td className="px-4 py-3"><Checkbox /></td>
+                    <td className="px-4 py-3">
+                      <Checkbox 
+                        checked={selectedIncidents.includes(r.id)}
+                        onCheckedChange={() => toggleSelectIncident(r.id)}
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="font-mono text-[10px] text-primary font-bold uppercase tracking-wider bg-primary/10 px-2 py-0.5 rounded">{r.ticketId}</span>
+                    </td>
                     <td className="px-4 py-3">
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${r.alertStatus ? "bg-primary text-primary-foreground" : "bg-warning text-warning-foreground"}`}>
-                        {r.alertStatus ? "THIEF" : "SUSPICIOUS"}
+                        {r.alertStatus ? "HIGHLY SUSPICIOUS" : "SUSPICIOUS"}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -151,7 +212,7 @@ export function QueuePage() {
                         <span className="text-xs text-muted-foreground">-</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 font-medium truncate max-w-[200px]">{r.location}</td>
+                    <td className="px-4 py-3 font-medium truncate max-w-[200px]">{r.location.split(' · ')[1]} Station Area</td>
                     <td className="px-4 py-3 text-muted-foreground tabular-nums">
                       {new Date(r.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </td>
@@ -162,7 +223,7 @@ export function QueuePage() {
                         className="text-primary hover:text-primary hover:bg-primary/10 font-bold"
                         onClick={() => handleOpenDetail(r)}
                       >
-                        Open
+                        VIEW
                       </Button>
                     </td>
                   </tr>
@@ -179,10 +240,24 @@ export function QueuePage() {
           </table>
         </div>
         <div className="p-3 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
-          <span>Showing {filteredIncidents.length} of {incidents.length} incidents</span>
+          <span>Showing {filteredIncidents.length} of {incidents.length} incidents {selectedIncidents.length > 0 && `(${selectedIncidents.length} selected)`}</span>
           <div className="flex gap-2">
-            <Button size="sm" variant="outline">Acknowledge selected</Button>
-            <Button size="sm" variant="outline">Export Selected</Button>
+            <Button 
+              size="sm" 
+              variant="outline" 
+              disabled={selectedIncidents.length === 0 || isUpdatingStatus}
+              onClick={() => handleBatchStatusChange('active')}
+            >
+              Acknowledge selected
+            </Button>
+            <Button 
+              size="sm" 
+              variant="outline"
+              disabled={selectedIncidents.length === 0 || isUpdatingStatus}
+              onClick={() => handleBatchStatusChange('false_alarm')}
+            >
+              Mark False Alarm
+            </Button>
           </div>
         </div>
       </div>
@@ -194,16 +269,16 @@ export function QueuePage() {
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${selectedIncident?.alertStatus ? "bg-primary text-primary-foreground" : "bg-warning text-warning-foreground"}`}>
-                  {selectedIncident?.alertStatus ? "THIEF" : "SUSPICIOUS"}
+                  {selectedIncident?.alertStatus ? "HIGHLY SUSPICIOUS" : "SUSPICIOUS"}
                 </span>
-                <span className="font-mono text-xs text-muted-foreground uppercase">{selectedIncident?.id}</span>
+                <span className="font-mono text-[10px] text-primary font-bold uppercase tracking-wider bg-primary/10 px-2 py-0.5 rounded">{selectedIncident?.ticketId}</span>
               </div>
             </div>
             <DialogTitle className="text-2xl font-bold">
-              {selectedIncident?.aiClass || "AI Detection"} Alert
+              {selectedIncident?.aiClass?.toString().trim().toUpperCase() === 'THIEF' ? "HIGHLY SUSPICIOUS" : (selectedIncident?.aiClass || "AI Detection")} Alert — {selectedIncident?.deviceId}
             </DialogTitle>
             <DialogDescription>
-              Incident detected at {selectedIncident?.location}
+              Incident detected at {selectedIncident?.location.split(' · ')[1]} Station Area
             </DialogDescription>
           </DialogHeader>
 
@@ -214,7 +289,7 @@ export function QueuePage() {
                 <Activity className="h-4 w-4" /> AI Detection Analysis
               </h3>
               <div className="bg-secondary/40 rounded-lg p-4 space-y-3">
-                <DetailRow label="AI Classification" value={selectedIncident?.aiClass || "N/A"} />
+                <DetailRow label="AI Classification" value={selectedIncident?.aiClass?.toString().trim().toUpperCase() === 'THIEF' ? "HIGHLY SUSPICIOUS" : (selectedIncident?.aiClass || "N/A")} />
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-muted-foreground">Confidence:</span>
                   <span className={`font-bold ${
@@ -224,7 +299,7 @@ export function QueuePage() {
                     {selectedIncident?.aiConfidence ? `${(selectedIncident.aiConfidence * 100).toFixed(1)}%` : "N/A"}
                   </span>
                 </div>
-                <DetailRow label="Alert Status" value={selectedIncident?.alertStatus === true ? "THIEF" : selectedIncident?.alertStatus === false ? "SUSPICIOUS" : "N/A"} />
+                <DetailRow label="Alert Status" value={selectedIncident?.alertStatus === true ? "HIGHLY SUSPICIOUS" : selectedIncident?.alertStatus === false ? "SUSPICIOUS" : "N/A"} />
               </div>
 
               {/* Media Section */}
@@ -233,32 +308,32 @@ export function QueuePage() {
               </h3>
               <div className="grid grid-cols-1 gap-3">
                 {selectedIncident?.videoPath ? (
-                  <div className="relative group rounded-lg overflow-hidden border border-border">
+                  <div className="relative group rounded-lg overflow-hidden border border-border bg-black aspect-video">
                     <video 
-                      src={`http://localhost:3000${selectedIncident.videoPath}`}
-                      className="w-full h-32 object-cover"
+                      key={selectedIncident.videoPath}
+                      className="w-full h-full object-contain"
                       muted
-                      onMouseOver={(e) => (e.target as HTMLVideoElement).play()}
-                      onMouseOut={(e) => {
-                        const v = e.target as HTMLVideoElement;
-                        v.pause();
-                        v.currentTime = 0;
-                      }}
-                    />
-                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <span className="text-white text-xs font-bold flex items-center gap-1">
-                        <Video className="h-4 w-4" /> PLAY
-                      </span>
-                    </div>
-                    <div className="absolute bottom-0 left-0 right-0 bg-black/70 px-2 py-1">
+                      playsInline
+                      controls
+                      autoPlay
+                      preload="auto"
+                      crossOrigin="anonymous"
+                    >
+                      <source 
+                        src={`http://${window.location.hostname}:3000${selectedIncident.videoPath}`} 
+                        type="video/mp4" 
+                      />
+                      Your browser does not support the video tag.
+                    </video>
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/70 px-2 py-1 z-10">
                       <span className="text-white text-[10px] flex items-center gap-1">
                         <Video className="h-3 w-3" /> Clip Video
                       </span>
                     </div>
                   </div>
                 ) : (
-                  <div className="h-32 rounded-lg border border-dashed border-border flex items-center justify-center bg-muted/30">
-                    <span className="text-muted-foreground text-xs">No video</span>
+                  <div className="aspect-video rounded-lg border border-dashed border-border flex items-center justify-center bg-muted/30">
+                    <span className="text-muted-foreground text-xs">No video evidence available</span>
                   </div>
                 )}
               </div>
@@ -312,13 +387,20 @@ export function QueuePage() {
                   <StatusPill status={selectedIncident?.status} />
                 </div>
                 <div className="pt-2 grid grid-cols-1 gap-2">
+                  <Button 
+                    className="w-full bg-muted hover:bg-muted/90 text-muted-foreground h-9 text-xs font-bold border border-border"
+                    onClick={() => handleStatusChange('false_alarm')}
+                    disabled={isUpdatingStatus}
+                  >
+                    {isUpdatingStatus ? <Loader2 className="h-4 w-4 animate-spin" /> : "Mark as False Alarm"}
+                  </Button>
                   {selectedIncident?.status === 'active' && (
                     <Button 
                       className="w-full bg-warning hover:bg-warning/90 text-warning-foreground h-9 text-xs font-bold"
                       onClick={() => handleStatusChange('pending')}
                       disabled={isUpdatingStatus}
                     >
-                      {isUpdatingStatus ? <Loader2 className="h-4 w-4 animate-spin" /> : "Mark as Pending"}
+                      {isUpdatingStatus ? <Loader2 className="h-4 w-4 animate-spin" /> : "Mark as In Progress"}
                     </Button>
                   )}
                   {(selectedIncident?.status === 'active' || selectedIncident?.status === 'pending') && (
@@ -327,7 +409,7 @@ export function QueuePage() {
                       onClick={() => handleStatusChange('solved')}
                       disabled={isUpdatingStatus}
                     >
-                      {isUpdatingStatus ? <Loader2 className="h-4 w-4 animate-spin" /> : "Mark as Solved"}
+                      {isUpdatingStatus ? <Loader2 className="h-4 w-4 animate-spin" /> : "Mark as RESOLVED"}
                     </Button>
                   )}
                   {selectedIncident?.status === 'solved' && (
@@ -336,7 +418,7 @@ export function QueuePage() {
                       className="w-full border-success text-success h-9 text-xs font-bold"
                       disabled
                     >
-                      <ShieldCheck className="h-4 w-4 mr-2" /> Incident Resolved
+                      <ShieldCheck className="h-4 w-4 mr-2" /> Incident RESOLVED
                     </Button>
                   )}
                 </div>
@@ -385,12 +467,13 @@ function PriorityBadge({ severity }: { severity: string }) {
 }
 
 function AiClassBadge({ aiClass }: { aiClass?: string }) {
+  const normalizedClass = aiClass?.toString().trim().toUpperCase();
   const map: Record<string, { label: string; class: string }> = {
-    THIEF: { label: "THIEF", class: "bg-primary/15 text-primary border-primary/30" },
+    THIEF: { label: "HIGHLY SUSPICIOUS", class: "bg-primary/15 text-primary border-primary/30" },
     SUSPICIOUS: { label: "SUSPICIOUS", class: "bg-warning/15 text-warning border-warning/30" },
     NORMAL: { label: "NORMAL", class: "bg-success/15 text-success border-success/30" },
   };
-  const config = aiClass ? map[aiClass.toUpperCase()] : null;
+  const config = normalizedClass ? map[normalizedClass] : null;
   if (!config) return <span className="text-xs text-muted-foreground">-</span>;
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border uppercase ${config.class}`}>
