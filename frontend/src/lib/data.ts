@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { User } from './auth';
+import { getDistrictCenter } from './locations';
 
 export interface Branch {
   id: string;
@@ -74,6 +75,18 @@ interface DataState {
     address: string;
     lat: number;
     lng: number;
+  }) => Promise<boolean>;
+  updateDevice: (id: string, updates: {
+    name?: string;
+    branchId?: string;
+    ipAddress?: string;
+    province?: string;
+    district?: string;
+    sector?: string;
+    cell?: string;
+    address?: string;
+    lat?: number;
+    lng?: number;
   }) => Promise<boolean>;
   removeDevice: (id: string) => Promise<boolean>;
 
@@ -348,13 +361,27 @@ export const useDataStore = create<DataState>()(
           const response = await secureFetch(`${API_BASE}/devices`);
           if (response.ok) {
             const data = await response.json();
-            set({ devices: data.map((d: any) => ({
-              ...d,
-              branchId: String(d.branchId),
-              branchName: d.branch?.name,
-              location: { lat: d.lat, lng: d.lng, address: d.address },
-              securityContacts: d.securityContacts
-            })) });
+            set({ devices: data.map((d: any) => {
+              // Heuristic: If device is in Kigali but its district is elsewhere, use district center
+              const districtCenter = getDistrictCenter(d.district) || getDistrictCenter(d.province);
+              const isDefaultKigali = Math.abs(d.lat - (-1.9441)) < 0.001 && Math.abs(d.lng - 30.0619) < 0.001;
+              const isKigaliArea = d.district?.toLowerCase().includes('kigali') || 
+                                  d.district?.toLowerCase().includes('nyarugenge') || 
+                                  d.district?.toLowerCase().includes('gasabo') || 
+                                  d.district?.toLowerCase().includes('kicukiro') ||
+                                  d.province?.toLowerCase().includes('kigali');
+              
+              const finalLat = (isDefaultKigali && !isKigaliArea && districtCenter) ? districtCenter.lat : d.lat;
+              const finalLng = (isDefaultKigali && !isKigaliArea && districtCenter) ? districtCenter.lng : d.lng;
+
+              return {
+                ...d,
+                branchId: String(d.branchId),
+                branchName: d.branch?.name,
+                location: { lat: finalLat, lng: finalLng, address: d.address },
+                securityContacts: d.securityContacts
+              };
+            }) });
           }
         } catch (error) { console.error('Fetch devices error:', error); }
       },
@@ -375,6 +402,23 @@ export const useDataStore = create<DataState>()(
               lat: device.lat,
               lng: device.lng
             }),
+          });
+          if (response.ok) {
+            await get().fetchDevices();
+            return true;
+          }
+          return false;
+        } catch (error) { return false; }
+      },
+
+      updateDevice: async (id, updates) => {
+        try {
+          const body: any = { ...updates };
+          if (updates.branchId) body.branchId = parseInt(updates.branchId);
+          
+          const response = await secureFetch(`${API_BASE}/devices/${id}`, {
+            method: 'PATCH',
+            body: JSON.stringify(body),
           });
           if (response.ok) {
             await get().fetchDevices();
@@ -426,7 +470,7 @@ export const useDataStore = create<DataState>()(
               status: i.status.toLowerCase(), // ACTIVE, PENDING, SOLVED -> active, pending, solved
               // Derived fields for UI compatibility
               severity: i.alertStatus ? 'critical' : 'warning',
-              type: i.alertStatus ? 'HIGHLY SUSPICIOUS' : (i.aiClass?.toString().trim().toUpperCase() === 'THIEF' ? 'HIGHLY SUSPICIOUS' : (i.aiClass || 'AI Detection'))
+              type: i.aiClass || 'SUSPICIOUS'
             })) });
           }
         } catch (error) { console.error('Fetch incidents error:', error); }
@@ -453,7 +497,7 @@ export const useDataStore = create<DataState>()(
               videoPath: i.videoPath,
               status: i.status.toLowerCase(),
               severity: i.alertStatus ? 'critical' : 'warning',
-              type: i.alertStatus ? 'HIGHLY SUSPICIOUS' : (i.aiClass?.toString().trim().toUpperCase() === 'THIEF' ? 'HIGHLY SUSPICIOUS' : (i.aiClass || 'AI Detection'))
+              type: i.aiClass || 'SUSPICIOUS'
             })) });
           }
         } catch (error) { console.error('Fetch incidents error:', error); }

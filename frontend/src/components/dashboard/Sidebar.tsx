@@ -50,9 +50,26 @@ export function Sidebar() {
   });
 
   return (
-    <aside className="hidden md:flex w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
-      <div className="px-5 py-5 border-b border-sidebar-border">
-        <RegLogo className="h-9" showText variant="dark" />
+    <aside className="hidden md:flex w-72 shrink-0 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border shadow-2xl z-50">
+      <div className="px-6 py-12 border-b border-sidebar-border bg-gradient-to-br from-primary/10 via-transparent to-transparent relative overflow-hidden group">
+        <div className="absolute top-0 left-0 w-1.5 h-full bg-primary shadow-[0_0_20px_rgba(var(--primary),0.6)]" />
+        <div className="flex flex-col gap-6 relative z-10">
+          <div className="flex items-center gap-4">
+            <div className="p-2.5 rounded-2xl bg-white/5 border border-white/10 group-hover:border-primary/40 transition-all duration-300 shadow-lg">
+              <RegLogo className="h-12" variant="dark" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xl font-black tracking-tighter text-white leading-none">GRIDGuard <span className="text-primary italic">AI</span></span>
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary/90 mt-1.5">Infrastructure Protection</span>
+            </div>
+          </div>
+          <div className="space-y-3">
+            <div className="h-[2px] w-14 bg-primary/50 rounded-full" />
+            <p className="text-[14px] font-bold leading-relaxed text-white/95 balance tracking-tight">
+              AI-based Solutions to Fight Vandalism in Power Infrastructure
+            </p>
+          </div>
+        </div>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {filteredItems.map((it) => {

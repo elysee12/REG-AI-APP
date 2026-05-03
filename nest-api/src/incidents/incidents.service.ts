@@ -37,14 +37,20 @@ export class IncidentsService {
       orderBy: { time: 'desc' },
     });
 
+    // Sanitize aiClass to ensure it's never an empty string
+    const sanitizedAiClass = (aiClass && String(aiClass).trim() !== '') ? aiClass : 'SUSPICIOUS';
+    console.log(`[IncidentsService] Creating/Updating incident. Original Class: "${aiClass}", Sanitized: "${sanitizedAiClass}"`);
+
     if (existingActiveIncident) {
-      // 1. ESCALATION: If existing is SUSPICIOUS and new is THIEF, upgrade the session
-      const isEscalation = existingActiveIncident.aiClass === 'SUSPICIOUS' && aiClass === 'THIEF';
+      // 1. ESCALATION: If existing is SUSPICIOUS and new is a high-risk class, upgrade the session
+      const highRiskClasses = ['VANDAL', 'CLIMBING', 'CUTTING_WIRES', 'OPENING_BOX'];
+      const isEscalation = existingActiveIncident.aiClass === 'SUSPICIOUS' && 
+                          highRiskClasses.includes(sanitizedAiClass as string);
       
       const updatedIncident = await this.prisma.incident.update({
         where: { id: existingActiveIncident.id },
         data: {
-          aiClass: isEscalation ? 'THIEF' : existingActiveIncident.aiClass,
+          aiClass: isEscalation ? (sanitizedAiClass as any) : existingActiveIncident.aiClass,
           alertStatus: isEscalation ? true : existingActiveIncident.alertStatus,
           aiConfidence: createIncidentDto.aiConfidence ?? existingActiveIncident.aiConfidence,
           videoPath: createIncidentDto.videoPath ?? existingActiveIncident.videoPath,
@@ -53,10 +59,10 @@ export class IncidentsService {
         include: {
           device: { include: { branch: true, securityContacts: true } },
         },
-      });
+      }) as any;
 
-      // If it was just escalated to THIEF, trigger the email alert now
-      if (isEscalation && updatedIncident.alertStatus && updatedIncident.device.securityContacts?.length > 0) {
+      // If it was just escalated, trigger the email alert now
+      if (isEscalation && updatedIncident.alertStatus && updatedIncident.device?.securityContacts?.length > 0) {
         for (const contact of updatedIncident.device.securityContacts) {
           await this.mailService.sendIncidentAlertEmail(contact.email, contact.name, updatedIncident);
         }
@@ -67,18 +73,22 @@ export class IncidentsService {
 
     // 2. NO ACTIVE SESSION: Create a new incident record
     let alertStatus = createIncidentDto.alertStatus;
-    if (aiClass === 'THIEF') {
+    const highRiskClasses = ['VANDAL', 'CLIMBING', 'CUTTING_WIRES', 'OPENING_BOX'];
+    if (highRiskClasses.includes(sanitizedAiClass as string)) {
       alertStatus = true;
-    } else if (aiClass === 'SUSPICIOUS') {
+    } else if (sanitizedAiClass === 'SUSPICIOUS') {
       alertStatus = false;
     }
 
     const incident = await this.prisma.incident.create({
       data: {
-        ...createIncidentDto,
-        time: now, // Explicitly use local application time
+        deviceId: createIncidentDto.deviceId,
+        aiClass: sanitizedAiClass as any,
+        aiConfidence: createIncidentDto.aiConfidence,
+        videoPath: createIncidentDto.videoPath,
         alertStatus: alertStatus ?? false,
-        status: createIncidentDto.status || IncidentStatus.ACTIVE,
+        status: (createIncidentDto.status as any) || IncidentStatus.ACTIVE,
+        time: now,
       },
       include: {
         device: {

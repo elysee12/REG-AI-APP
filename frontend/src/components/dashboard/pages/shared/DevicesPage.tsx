@@ -18,8 +18,9 @@ import {
 } from "@/components/ui/select";
 import { useDataStore, Device } from "@/lib/data";
 import { useAuthStore } from "@/lib/auth";
-import { SeverityPill, StatusPill } from "../../shared/DashboardComponents";
-import { Camera, Radio, Radar, MapPin, Trash2, Activity, Building2, ShieldCheck, UserPlus, X, Clock, Shield, ExternalLink, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { getDistrictCenter } from "@/lib/locations";
+import { SeverityPill, StatusPill, Pagination } from "../../shared/DashboardComponents";
+import { Camera, Radio, Radar, MapPin, Trash2, Edit, Activity, Building2, ShieldCheck, UserPlus, X, Clock, Shield, ExternalLink, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 
 export function DevicesPage() {
@@ -28,6 +29,7 @@ export function DevicesPage() {
     branches, 
     securityContacts,
     addDevice, 
+    updateDevice,
     removeDevice, 
     fetchDevices, 
     fetchBranches,
@@ -50,6 +52,7 @@ export function DevicesPage() {
 
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
   const [isDetectionDialogOpen, setIsDetectionDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
 
   useEffect(() => {
@@ -114,6 +117,9 @@ export function DevicesPage() {
   };
   
   const [search, setSearch] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 5;
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
     serialNumber: "",
@@ -128,7 +134,6 @@ export function DevicesPage() {
   useEffect(() => {
     if (formData.province) {
       fetchDistricts(formData.province).then(setDistricts);
-      setFormData(prev => ({ ...prev, district: "", sector: "", cell: "" }));
       setSectors([]);
       setCells([]);
     } else {
@@ -141,7 +146,6 @@ export function DevicesPage() {
   useEffect(() => {
     if (formData.province && formData.district) {
       fetchSectors(formData.province, formData.district).then(setSectors);
-      setFormData(prev => ({ ...prev, sector: "", cell: "" }));
       setCells([]);
     } else {
       setSectors([]);
@@ -152,7 +156,6 @@ export function DevicesPage() {
   useEffect(() => {
     if (formData.province && formData.district && formData.sector) {
       fetchCells(formData.province, formData.district, formData.sector).then(setCells);
-      setFormData(prev => ({ ...prev, cell: "" }));
     } else {
       setCells([]);
     }
@@ -166,11 +169,23 @@ export function DevicesPage() {
     return matchesSearch && d.branchName === user?.branchName;
   });
 
+  const totalPages = Math.ceil(filteredDevices.length / rowsPerPage);
+  const paginatedDevices = filteredDevices.slice(
+    (currentPage - 1) * rowsPerPage,
+    currentPage * rowsPerPage
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const branch = branches.find(b => b.id === formData.branchId);
     if (branch) {
       const address = `${formData.cell}, ${formData.sector}, ${formData.district}, ${formData.province}`;
+      const districtCoords = getDistrictCenter(formData.district) || getDistrictCenter(formData.province);
+      
       addDevice({
         serialNumber: formData.serialNumber,
         branchId: formData.branchId,
@@ -181,8 +196,8 @@ export function DevicesPage() {
         sector: formData.sector,
         cell: formData.cell,
         address: address,
-        lat: -1.9441, // Default Kigali for now, could be enhanced with real geo lookup
-        lng: 30.0619
+        lat: districtCoords?.lat || -1.9441,
+        lng: districtCoords?.lng || 30.0619
       });
       setIsDialogOpen(false);
       setFormData({ 
@@ -194,6 +209,60 @@ export function DevicesPage() {
         sector: "",
         cell: ""
       });
+    }
+  };
+
+  const handleEditClick = (device: Device) => {
+    setSelectedDevice(device);
+    setFormData({
+      serialNumber: device.id,
+      branchId: String(device.branchId),
+      ipAddress: device.ipAddress || "",
+      province: device.province || "",
+      district: device.district || "",
+      sector: device.sector || "",
+      cell: device.cell || "",
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedDevice) return;
+
+    const branch = branches.find(b => b.id === formData.branchId);
+    if (branch) {
+      const address = `${formData.cell}, ${formData.sector}, ${formData.district}, ${formData.province}`;
+      const districtCoords = getDistrictCenter(formData.district) || getDistrictCenter(formData.province);
+      
+      const success = await updateDevice(selectedDevice.id, {
+        branchId: formData.branchId,
+        ipAddress: formData.ipAddress,
+        province: formData.province,
+        district: formData.district,
+        sector: formData.sector,
+        cell: formData.cell,
+        address: address,
+        lat: districtCoords?.lat || selectedDevice.location.lat,
+        lng: districtCoords?.lng || selectedDevice.location.lng
+      });
+
+      if (success) {
+        toast.success("Device updated successfully");
+        setIsEditDialogOpen(false);
+        setSelectedDevice(null);
+        setFormData({ 
+          serialNumber: "", 
+          branchId: "", 
+          ipAddress: "",
+          province: "",
+          district: "",
+          sector: "",
+          cell: ""
+        });
+      } else {
+        toast.error("Failed to update device");
+      }
     }
   };
 
@@ -241,7 +310,7 @@ export function DevicesPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredDevices.map((d) => (
+              {paginatedDevices.map((d) => (
                 <tr key={d.id} className="border-t border-border hover:bg-secondary/40 transition-colors">
                   <td className="px-4 py-4">
                     <div className="flex items-center gap-3">
@@ -314,14 +383,24 @@ export function DevicesPage() {
                   </td>
                   <td className="px-4 py-4 text-right">
                     {user?.role === "HQ_ADMIN" ? (
-                      <Button 
-                        size="sm" 
-                        variant="ghost" 
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => removeDevice(d.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          className="text-primary hover:text-primary hover:bg-primary/10"
+                          onClick={() => handleEditClick(d)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => removeDevice(d.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     ) : (
                       <Button 
                         size="sm" 
@@ -345,6 +424,11 @@ export function DevicesPage() {
             </tbody>
           </table>
         </div>
+        <Pagination 
+          currentPage={currentPage} 
+          totalPages={totalPages} 
+          onPageChange={setCurrentPage} 
+        />
       </div>
 
       <Dialog open={isLinkDialogOpen} onOpenChange={setIsLinkDialogOpen}>
@@ -611,7 +695,7 @@ export function DevicesPage() {
                   id="serialNumber"
                   value={formData.serialNumber}
                   onChange={(e) => setFormData({ ...formData, serialNumber: e.target.value })}
-                  placeholder="e.g. REG-AI-XXXX"
+                  placeholder="e.g. GG-AI-XXXX"
                   required
                 />
               </div>
@@ -631,7 +715,32 @@ export function DevicesPage() {
               <Label htmlFor="branch">Assigned Branch</Label>
               <Select
                 value={formData.branchId}
-                onValueChange={(v) => setFormData({ ...formData, branchId: v })}
+                onValueChange={(v) => {
+                  const branch = branches.find(b => b.id === v);
+                  if (branch) {
+                    const addressParts = branch.address.split(", ");
+                    const province = branch.region;
+                    const district = addressParts[2] || "";
+                    const sector = addressParts[1] || "";
+                    const cell = addressParts[0] || "";
+
+                    // Pre-fetch locations to populate dropdowns immediately
+                    if (province) fetchDistricts(province).then(setDistricts);
+                    if (province && district) fetchSectors(province, district).then(setSectors);
+                    if (province && district && sector) fetchCells(province, district, sector).then(setCells);
+
+                    setFormData({
+                      ...formData,
+                      branchId: v,
+                      province,
+                      district,
+                      sector,
+                      cell,
+                    });
+                  } else {
+                    setFormData({ ...formData, branchId: v });
+                  }
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select target branch" />
@@ -651,7 +760,7 @@ export function DevicesPage() {
                 <Label>Province</Label>
                 <Select
                   value={formData.province}
-                  onValueChange={(v) => setFormData({ ...formData, province: v })}
+                  onValueChange={(v) => setFormData({ ...formData, province: v, district: "", sector: "", cell: "" })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select province" />
@@ -667,7 +776,7 @@ export function DevicesPage() {
                 <Label>District</Label>
                 <Select
                   value={formData.district}
-                  onValueChange={(v) => setFormData({ ...formData, district: v })}
+                  onValueChange={(v) => setFormData({ ...formData, district: v, sector: "", cell: "" })}
                   disabled={!formData.province}
                 >
                   <SelectTrigger>
@@ -687,7 +796,7 @@ export function DevicesPage() {
                 <Label>Sector</Label>
                 <Select
                   value={formData.sector}
-                  onValueChange={(v) => setFormData({ ...formData, sector: v })}
+                  onValueChange={(v) => setFormData({ ...formData, sector: v, cell: "" })}
                   disabled={!formData.district}
                 >
                   <SelectTrigger>
@@ -721,6 +830,158 @@ export function DevicesPage() {
 
             <DialogFooter className="pt-4">
               <Button type="submit" className="w-full">Initialize & Register Unit</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Device Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Edit AI Vandalism Detection Unit</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleUpdateSubmit} className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-serialNumber">Serial Number (Read Only)</Label>
+                <Input
+                  id="edit-serialNumber"
+                  value={formData.serialNumber}
+                  disabled
+                  className="bg-muted"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-ipAddress">Device IP Address</Label>
+                <Input
+                  id="edit-ipAddress"
+                  value={formData.ipAddress}
+                  onChange={(e) => setFormData({ ...formData, ipAddress: e.target.value })}
+                  placeholder="e.g. 192.168.1.100"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-branch">Assigned Branch</Label>
+              <Select
+                value={formData.branchId}
+                onValueChange={(v) => {
+                  const branch = branches.find(b => b.id === v);
+                  if (branch) {
+                    const addressParts = branch.address.split(", ");
+                    const province = branch.region;
+                    const district = addressParts[2] || "";
+                    const sector = addressParts[1] || "";
+                    const cell = addressParts[0] || "";
+
+                    if (province) fetchDistricts(province).then(setDistricts);
+                    if (province && district) fetchSectors(province, district).then(setSectors);
+                    if (province && district && sector) fetchCells(province, district, sector).then(setCells);
+
+                    setFormData({
+                      ...formData,
+                      branchId: v,
+                      province,
+                      district,
+                      sector,
+                      cell,
+                    });
+                  } else {
+                    setFormData({ ...formData, branchId: v });
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select target branch" />
+                </SelectTrigger>
+                <SelectContent>
+                  {branches.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>
+                      {b.name} ({b.region})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>Province</Label>
+                <Select
+                  value={formData.province}
+                  onValueChange={(v) => setFormData({ ...formData, province: v, district: "", sector: "", cell: "" })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select province" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {provinces.map((p) => (
+                      <SelectItem key={p} value={p}>{p}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>District</Label>
+                <Select
+                  value={formData.district}
+                  onValueChange={(v) => setFormData({ ...formData, district: v, sector: "", cell: "" })}
+                  disabled={!formData.province}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select district" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {districts.map((d) => (
+                      <SelectItem key={d} value={d}>{d}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>Sector</Label>
+                <Select
+                  value={formData.sector}
+                  onValueChange={(v) => setFormData({ ...formData, sector: v, cell: "" })}
+                  disabled={!formData.district}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select sector" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sectors.map((s) => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Cell</Label>
+                <Select
+                  value={formData.cell}
+                  onValueChange={(v) => setFormData({ ...formData, cell: v })}
+                  disabled={!formData.sector}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select cell" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {cells.map((c) => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <DialogFooter className="pt-4">
+              <Button type="submit" className="w-full">Save Changes</Button>
             </DialogFooter>
           </form>
         </DialogContent>

@@ -11,6 +11,7 @@ import {
 import { useDataStore } from "@/lib/data";
 import { ShieldCheck, User, Mail, Phone, Building2, Filter, Info, AlertTriangle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Pagination } from "../../shared/DashboardComponents";
 
 export function HQSecurityContactsPage() {
   const { 
@@ -22,6 +23,8 @@ export function HQSecurityContactsPage() {
   
   const [search, setSearch] = useState("");
   const [branchFilter, setBranchFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 5;
 
   useEffect(() => {
     fetchSecurityContacts();
@@ -41,6 +44,16 @@ export function HQSecurityContactsPage() {
       return matchesSearch && matchesBranch;
     });
   }, [securityContacts, search, branchFilter]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, branchFilter]);
+
+  const totalPages = Math.ceil(filteredContacts.length / rowsPerPage);
+  const paginatedContacts = filteredContacts.slice(
+    (currentPage - 1) * rowsPerPage,
+    currentPage * rowsPerPage
+  );
 
   // Audit data: count contacts per branch
   const branchAudit = useMemo(() => {
@@ -144,8 +157,8 @@ export function HQSecurityContactsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filteredContacts.length > 0 ? (
-                  filteredContacts.map((contact) => (
+                {paginatedContacts.length > 0 ? (
+                  paginatedContacts.map((contact) => (
                     <tr key={contact.id} className="hover:bg-muted/30 transition-colors group">
                       <td className="p-4 font-medium flex items-center gap-2">
                         <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
@@ -199,6 +212,11 @@ export function HQSecurityContactsPage() {
             </table>
           </div>
         </ScrollArea>
+        <Pagination 
+          currentPage={currentPage} 
+          totalPages={totalPages} 
+          onPageChange={setCurrentPage} 
+        />
       </div>
 
       {/* Audit Summary for HQ */}

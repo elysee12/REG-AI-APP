@@ -1,9 +1,72 @@
 import { useDataStore } from "@/lib/data";
 import { useMemo, useState, useEffect, lazy, Suspense } from "react";
-import { Info } from "lucide-react";
+import { Info, ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 // Dynamically import LeafletMap to avoid "window is not defined" error during SSR
 const LeafletMap = lazy(() => import("./LeafletMap"));
+
+export function Pagination({ 
+  currentPage, 
+  totalPages, 
+  onPageChange 
+}: { 
+  currentPage: number; 
+  totalPages: number; 
+  onPageChange: (page: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+
+  return (
+    <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-secondary/20">
+      <div className="flex flex-1 justify-between sm:hidden">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+        >
+          Previous
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+        >
+          Next
+        </Button>
+      </div>
+      <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs text-muted-foreground">
+            Showing page <span className="font-medium text-foreground">{currentPage}</span> of <span className="font-medium text-foreground">{totalPages}</span>
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={() => onPageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={() => onPageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function Kpi({ icon: Icon, label, value, trend, tone = "default" }: {
   icon: React.ComponentType<{ className?: string }>;
@@ -83,13 +146,15 @@ export function MiniMap({
   items = [], 
   type = 'device',
   onMarkerClick,
-  selectedId
+  selectedId,
+  center: propCenter
 }: { 
   items?: any[], 
   type?: 'device' | 'branch',
   isClustered?: boolean,
   onMarkerClick?: (item: any) => void,
-  selectedId?: string
+  selectedId?: string,
+  center?: { lat: number, lng: number }
 }) {
   const [isClient, setIsClient] = useState(false);
 
@@ -98,9 +163,30 @@ export function MiniMap({
   }, []);
 
   const selectedItem = selectedId ? items.find(i => i.id === selectedId) : null;
-  const currentCenter: [number, number] = selectedItem && selectedItem.location?.lat && selectedItem.location?.lng
-    ? [selectedItem.location.lat, selectedItem.location.lng] 
-    : [center.lat, center.lng];
+  
+  // Calculate center: 
+  // 1. If selectedItem exists, use it
+  // 2. If propCenter exists, use it
+  // 3. If items exist, use the average of items
+  // 4. Default to Kigali
+  const currentCenter: [number, number] = useMemo(() => {
+    if (selectedItem && selectedItem.location?.lat && selectedItem.location?.lng) {
+      return [selectedItem.location.lat, selectedItem.location.lng];
+    }
+    if (propCenter) {
+      return [propCenter.lat, propCenter.lng];
+    }
+    if (items.length > 0) {
+      const validItems = items.filter(i => i.location?.lat && i.location?.lng);
+      if (validItems.length > 0) {
+        const avgLat = validItems.reduce((sum, i) => sum + i.location.lat, 0) / validItems.length;
+        const avgLng = validItems.reduce((sum, i) => sum + i.location.lng, 0) / validItems.length;
+        return [avgLat, avgLng];
+      }
+    }
+    return [center.lat, center.lng];
+  }, [selectedItem, propCenter, items]);
+
   const currentZoom = selectedId ? 17 : 9;
 
   if (!isClient) return (

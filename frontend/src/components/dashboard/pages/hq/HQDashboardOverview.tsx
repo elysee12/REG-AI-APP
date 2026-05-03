@@ -2,7 +2,7 @@ import { Siren, Radio, Camera, CheckCircle2, MapPin, Send, FileText, UserPlus, B
 import { Button } from "@/components/ui/button";
 import { useDataStore } from "@/lib/data";
 import { useMemo, useEffect, useState } from "react";
-import { Kpi, SummaryRow, QuickAction, MiniMap, SeverityPill, StatusPill } from "../../shared/DashboardComponents";
+import { Kpi, SummaryRow, QuickAction, MiniMap, SeverityPill, StatusPill, Pagination } from "../../shared/DashboardComponents";
 import { useNavigate } from "@tanstack/react-router";
 import { 
   ResponsiveContainer, 
@@ -46,6 +46,10 @@ export function HQDashboardOverview() {
   // Modal state for branch breakdown
   const [isBranchBreakdownOpen, setIsBranchBreakdownOpen] = useState(false);
   const [selectedBranchBreakdown, setSelectedBranchBreakdown] = useState<any>(null);
+  
+  const [currentPageRanking, setCurrentPageRanking] = useState(1);
+  const [currentPageWatch, setCurrentPageWatch] = useState(1);
+  const rowsPerPage = 5;
 
   useEffect(() => {
     fetchDevices();
@@ -120,7 +124,14 @@ export function HQDashboardOverview() {
       name: r,
       count: incidents.filter(i => {
         const branch = branches.find(b => String(b.id) === String(i.branchId));
-        return branch?.region === r;
+        if (!branch) return false;
+        
+        // Flexible matching: check if branch region contains the name or vice versa
+        // This handles "Kigali" vs "Kigali Province"
+        const branchRegion = branch.region.toLowerCase();
+        const searchRegion = r.toLowerCase();
+        
+        return branchRegion.includes(searchRegion) || searchRegion.includes(branchRegion);
       }).length
     })).sort((a, b) => b.count - a.count);
   }, [incidents, branches]);
@@ -129,9 +140,20 @@ export function HQDashboardOverview() {
   const highSeverityQueue = useMemo(() => {
     return filteredIncidents
       .filter(i => (i.severity === "critical" || i.severity === "high") && i.status !== "solved")
-      .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
-      .slice(0, 5);
+      .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
   }, [filteredIncidents]);
+
+  const totalPagesRanking = Math.ceil(branchStats.length / rowsPerPage);
+  const paginatedRanking = branchStats.slice(
+    (currentPageRanking - 1) * rowsPerPage,
+    currentPageRanking * rowsPerPage
+  );
+
+  const totalPagesWatch = Math.ceil(highSeverityQueue.length / rowsPerPage);
+  const paginatedWatch = highSeverityQueue.slice(
+    (currentPageWatch - 1) * rowsPerPage,
+    currentPageWatch * rowsPerPage
+  );
 
   // Trend Data (Filtered)
   const trendData = useMemo(() => {
@@ -299,7 +321,7 @@ export function HQDashboardOverview() {
                 </tr>
               </thead>
               <tbody>
-                {branchStats.slice(0, 10).map((b) => (
+                {paginatedRanking.map((b) => (
                   <tr key={b.id} className="border-t border-border hover:bg-secondary/40 transition-colors">
                     <td 
                       className="px-4 py-3 font-medium cursor-pointer hover:text-primary transition-colors"
@@ -326,6 +348,11 @@ export function HQDashboardOverview() {
               </tbody>
             </table>
           </div>
+          <Pagination 
+            currentPage={currentPageRanking} 
+            totalPages={totalPagesRanking} 
+            onPageChange={setCurrentPageRanking} 
+          />
         </div>
 
         {/* Strategic High-Severity Queue */}
@@ -354,8 +381,8 @@ export function HQDashboardOverview() {
                 </tr>
               </thead>
               <tbody>
-                {highSeverityQueue.length > 0 ? (
-                  highSeverityQueue.map((i) => (
+                {paginatedWatch.length > 0 ? (
+                  paginatedWatch.map((i) => (
                     <tr key={i.id} className="border-t border-border hover:bg-secondary/40 transition-colors">
                       <td className="px-4 py-3">
                         <span className="font-mono text-[10px] text-primary font-bold uppercase tracking-wider bg-primary/10 px-2 py-0.5 rounded">{i.ticketId}</span>
@@ -376,6 +403,11 @@ export function HQDashboardOverview() {
               </tbody>
             </table>
           </div>
+          <Pagination 
+            currentPage={currentPageWatch} 
+            totalPages={totalPagesWatch} 
+            onPageChange={setCurrentPageWatch} 
+          />
         </div>
       </div>
 

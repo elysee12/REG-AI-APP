@@ -1,9 +1,17 @@
 import { useState, useMemo, useEffect, lazy, Suspense, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Download, Printer, TrendingUp, AlertTriangle, Building2, Calendar, ShieldCheck, MapPin, Clock, CheckCircle2, FileText, ChevronUp, ChevronDown, Camera, Info, Target, Zap } from "lucide-react";
+import { 
+  Download, Printer, TrendingUp, AlertTriangle, Building2, Calendar, 
+  ShieldCheck, MapPin, Clock, CheckCircle2, FileText, ChevronUp, 
+  ChevronDown, Camera, Info, Target, Zap, Filter, Search, X 
+} from "lucide-react";
 import { useDataStore } from "@/lib/data";
 import { toast } from "sonner";
 import { useReactToPrint } from "react-to-print";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Pagination, SeverityPill, StatusPill } from "../../shared/DashboardComponents";
 
 // Dynamically import Leaflet components for the report map
 const ReportMap = lazy(() => import("./ReportMap"));
@@ -17,6 +25,11 @@ export function HQReportsPage() {
     return d.toISOString().split('T')[0];
   });
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedBranch, setSelectedBranch] = useState("all");
+  const [filterPreset, setFilterPreset] = useState<"daily" | "weekly" | "monthly" | "custom">("monthly");
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 5;
+
   const [isPrinting, setIsPrinting] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
 
@@ -33,6 +46,18 @@ export function HQReportsPage() {
     }
   });
 
+  const setPreset = (preset: "daily" | "weekly" | "monthly") => {
+    const end = new Date();
+    const start = new Date();
+    if (preset === "daily") start.setDate(end.getDate() - 1);
+    else if (preset === "weekly") start.setDate(end.getDate() - 7);
+    else if (preset === "monthly") start.setMonth(end.getMonth() - 1);
+    
+    setDateFrom(start.toISOString().split('T')[0]);
+    setDateTo(end.toISOString().split('T')[0]);
+    setFilterPreset(preset);
+  };
+
   useEffect(() => {
     fetchBranches();
     fetchIncidents();
@@ -42,9 +67,52 @@ export function HQReportsPage() {
   const filteredIncidents = useMemo(() => {
     return incidents.filter(i => {
       const incidentDate = new Date(i.time).toISOString().split('T')[0];
-      return incidentDate >= dateFrom && incidentDate <= dateTo;
+      const matchesDate = incidentDate >= dateFrom && incidentDate <= dateTo;
+      const matchesBranch = selectedBranch === "all" || String(i.branchId) === selectedBranch;
+      return matchesDate && matchesBranch;
     });
-  }, [incidents, dateFrom, dateTo]);
+  }, [incidents, dateFrom, dateTo, selectedBranch]);
+
+  // Branch Summary Data for Table
+  const branchSummary = useMemo(() => {
+    const summary: Record<string, { 
+      id: string; 
+      name: string; 
+      region: string; 
+      total: number; 
+      critical: number; 
+      resolved: number;
+      pending: number;
+    }> = {};
+
+    filteredIncidents.forEach(i => {
+      if (!summary[i.branchId]) {
+        const branch = branches.find(b => String(b.id) === String(i.branchId));
+        summary[i.branchId] = {
+          id: i.branchId,
+          name: branch?.name || 'Unknown',
+          region: branch?.region || 'Unknown',
+          total: 0,
+          critical: 0,
+          resolved: 0,
+          pending: 0
+        };
+      }
+      const s = summary[i.branchId];
+      s.total++;
+      if (i.severity === 'critical') s.critical++;
+      if (i.status === 'resolved' || i.status === 'solved') s.resolved++;
+      else s.pending++;
+    });
+
+    return Object.values(summary).sort((a, b) => b.total - a.total);
+  }, [filteredIncidents, branches]);
+
+  const totalPages = Math.ceil(branchSummary.length / rowsPerPage);
+  const paginatedSummary = branchSummary.slice(
+    (currentPage - 1) * rowsPerPage,
+    currentPage * rowsPerPage
+  );
 
   // Strategic KPIs
   const strategicStats = useMemo(() => {
@@ -170,18 +238,95 @@ export function HQReportsPage() {
       `}</style>
 
       {/* Screen Header - Hidden on print */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Executive Strategy Hub</h1>
-          <p className="text-muted-foreground">High-level national overview for Board-level security oversight.</p>
+      <div className="flex flex-col gap-6 print:hidden">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Executive Strategy Hub</h1>
+            <p className="text-muted-foreground">High-level national overview for Board-level security oversight.</p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => handlePrint()} className="font-bold" disabled={isPrinting}>
+              <Printer className="h-4 w-4 mr-2" /> {isPrinting ? "Preparing..." : "Print Executive Summary"}
+            </Button>
+            <Button size="sm" className="font-bold">
+              <Download className="h-4 w-4 mr-2" /> Export Strategic Data
+            </Button>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => handlePrint()} className="font-bold" disabled={isPrinting}>
-            <Printer className="h-4 w-4 mr-2" /> {isPrinting ? "Preparing..." : "Print Executive Summary"}
-          </Button>
-          <Button size="sm" className="font-bold">
-            <Download className="h-4 w-4 mr-2" /> Export Strategic Data
-          </Button>
+
+        {/* Advanced Filtering System */}
+        <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-6">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex bg-secondary/50 p-1 rounded-lg border border-border">
+              <Button 
+                variant={filterPreset === "daily" ? "secondary" : "ghost"} 
+                size="sm" 
+                className="text-xs h-8 px-4"
+                onClick={() => setPreset("daily")}
+              >
+                Daily
+              </Button>
+              <Button 
+                variant={filterPreset === "weekly" ? "secondary" : "ghost"} 
+                size="sm" 
+                className="text-xs h-8 px-4"
+                onClick={() => setPreset("weekly")}
+              >
+                Weekly
+              </Button>
+              <Button 
+                variant={filterPreset === "monthly" ? "secondary" : "ghost"} 
+                size="sm" 
+                className="text-xs h-8 px-4"
+                onClick={() => setPreset("monthly")}
+              >
+                Monthly
+              </Button>
+            </div>
+
+            <div className="h-8 w-[1px] bg-border mx-2 hidden md:block" />
+
+            <div className="flex items-center gap-3">
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground ml-1">From</Label>
+                <Input 
+                  type="date" 
+                  value={dateFrom} 
+                  onChange={(e) => { setDateFrom(e.target.value); setFilterPreset("custom"); }}
+                  className="h-9 text-xs w-[140px]"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground ml-1">To</Label>
+                <Input 
+                  type="date" 
+                  value={dateTo} 
+                  onChange={(e) => { setDateTo(e.target.value); setFilterPreset("custom"); }}
+                  className="h-9 text-xs w-[140px]"
+                />
+              </div>
+            </div>
+
+            <div className="h-8 w-[1px] bg-border mx-2 hidden md:block" />
+
+            <div className="space-y-1 flex-1 min-w-[200px]">
+              <Label className="text-[10px] uppercase font-bold text-muted-foreground ml-1">Branch Focus</Label>
+              <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+                <SelectTrigger className="h-9 text-xs">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="h-3.5 w-3.5 text-primary" />
+                    <SelectValue placeholder="All Branches" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All GRIDGuard AI Branches (National)</SelectItem>
+                  {branches.map(b => (
+                    <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -191,7 +336,7 @@ export function HQReportsPage() {
         <div className="hidden print:block mb-8">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-4">
-              <div className="h-14 w-14 bg-[#f8f9fa] border border-border rounded flex items-center justify-center text-[#c22026] font-black text-2xl shadow-sm">REG</div>
+              <div className="h-14 w-14 bg-[#f8f9fa] border border-border rounded flex items-center justify-center text-[#c22026] font-black text-2xl shadow-sm">AI</div>
               <div>
                 <h1 className="text-2xl font-black uppercase tracking-tighter text-[#1a1a1a]">AI-Vandalism Detection System</h1>
                 <p className="text-[10px] text-[#666] uppercase font-bold tracking-[0.2em]">National Strategic Security Report</p>
@@ -302,36 +447,67 @@ export function HQReportsPage() {
               </div>
             </div>
 
-            {/* Evidence Gallery */}
-            <div className="bg-card border border-border rounded-xl shadow-card overflow-hidden print:break-before-page">
+            {/* Branch Incident Summary Table */}
+            <div className="bg-card border border-border rounded-xl shadow-card overflow-hidden print:shadow-none print:border-2">
               <div className="p-4 border-b border-border bg-secondary/10 flex items-center justify-between">
                 <h2 className="font-bold flex items-center gap-2">
-                  <Camera className="h-4 w-4 text-primary" />
-                  Detection Evidence Gallery
+                  <Building2 className="h-4 w-4 text-primary" />
+                  Branch Incident Summary Table
                 </h2>
-                <span className="text-[10px] font-bold text-muted-foreground uppercase">High-Confidence Snapshots</span>
+                <span className="text-[10px] font-bold text-muted-foreground uppercase">Aggregated Regional Metrics</span>
               </div>
-              <div className="p-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-                {snapshots.map((s, idx) => (
-                  <div key={idx} className="space-y-2">
-                    <div className="aspect-square bg-black rounded-lg overflow-hidden border border-border relative">
-                      <img src={s.imagePath} alt="Evidence" className="h-full w-full object-cover" />
-                      <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-black/70 text-[8px] text-white font-bold border border-white/20">
-                        {(s.aiConfidence * 100).toFixed(0)}% CONF.
-                      </div>
-                    </div>
-                    <div className="text-[9px] text-muted-foreground truncate font-medium">
-                      {s.type} · {new Date(s.time).toLocaleDateString()}
-                    </div>
-                  </div>
-                ))}
-                {snapshots.length === 0 && (
-                  <div className="col-span-4 py-12 text-center text-muted-foreground italic flex flex-col items-center gap-2">
-                    <Camera className="h-8 w-8 opacity-10" />
-                    <p className="text-xs">No high-confidence snapshots found for report.</p>
-                  </div>
-                )}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="text-[10px] uppercase text-muted-foreground bg-secondary/50">
+                    <tr>
+                      <th className="text-left px-6 py-3 font-bold tracking-wider">Branch Name</th>
+                      <th className="text-left px-6 py-3 font-bold tracking-wider">Region</th>
+                      <th className="text-center px-6 py-3 font-bold tracking-wider">Total Incidents</th>
+                      <th className="text-center px-6 py-3 font-bold tracking-wider">Critical Alerts</th>
+                      <th className="text-center px-6 py-3 font-bold tracking-wider">Resolved</th>
+                      <th className="text-right px-6 py-3 font-bold tracking-wider">Success Rate</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {paginatedSummary.length > 0 ? (
+                      paginatedSummary.map((b) => (
+                        <tr key={b.id} className="hover:bg-secondary/40 transition-colors">
+                          <td className="px-6 py-4 font-bold text-primary">{b.name}</td>
+                          <td className="px-6 py-4 text-muted-foreground">{b.region}</td>
+                          <td className="px-6 py-4 text-center font-mono font-bold">{b.total}</td>
+                          <td className="px-6 py-4 text-center">
+                            <SeverityPill level="critical" count={b.critical} />
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <StatusPill status="resolved" count={b.resolved} />
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex flex-col items-end gap-1">
+                              <span className={`text-xs font-black ${((b.resolved / b.total) * 100) > 85 ? 'text-success' : 'text-warning'}`}>
+                                {((b.resolved / b.total) * 100).toFixed(1)}%
+                              </span>
+                              <div className="h-1 w-16 bg-secondary rounded-full overflow-hidden">
+                                <div className={`h-full ${((b.resolved / b.total) * 100) > 85 ? 'bg-success' : 'bg-warning'}`} style={{ width: `${(b.resolved / b.total) * 100}%` }} />
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={6} className="py-12 text-center text-muted-foreground italic bg-secondary/5">
+                          No branch data available for the selected period.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
+              <Pagination 
+                currentPage={currentPage} 
+                totalPages={totalPages} 
+                onPageChange={setCurrentPage} 
+              />
             </div>
           </div>
 
@@ -352,7 +528,7 @@ export function HQReportsPage() {
                   </div>
                 ))}
                 <div className="pt-4 border-t border-border mt-4">
-                  <p className="text-[10px] text-muted-foreground italic">Insights generated by REG AI Security Analysis Engine based on cross-regional data correlation.</p>
+                  <p className="text-[10px] text-muted-foreground italic">Insights generated by GRIDGuard AI Security Analysis Engine based on cross-regional data correlation.</p>
                 </div>
               </div>
             </div>
@@ -372,7 +548,7 @@ export function HQReportsPage() {
         {/* Footer - Print only */}
         <div className="hidden print:block mt-12 pt-8 border-t border-border text-[10px] text-muted-foreground">
           <div className="flex justify-between items-center">
-            <p>© 2026 REG - Rwanda Energy Group. Confidential Security Audit. All detection data is AI-verified and stored on encrypted servers.</p>
+            <p>© 2026 GRIDGuard AI - Rwanda Energy Group Infrastructure Protection. Confidential Security Audit. All detection data is AI-verified and stored on encrypted servers.</p>
             <p>Page 1 of 1</p>
           </div>
         </div>

@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { useDataStore } from "@/lib/data";
 import { useAuthStore } from "@/lib/auth";
 import { ShieldCheck, User, Mail, Phone, Plus, Pencil, Trash2, Building2 } from "lucide-react";
+import { Pagination } from "../../shared/DashboardComponents";
 
 export function BranchSecurityContactsPage() {
   const { 
@@ -43,6 +44,9 @@ export function BranchSecurityContactsPage() {
   const [cells, setCells] = useState<string[]>([]);
 
   const [search, setSearch] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 5;
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -102,6 +106,16 @@ export function BranchSecurityContactsPage() {
     c.email.toLowerCase().includes(search.toLowerCase()) ||
     c.phone.toLowerCase().includes(search.toLowerCase()) ||
     (c.district && c.district.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search]);
+
+  const totalPages = Math.ceil(filteredContacts.length / rowsPerPage);
+  const paginatedContacts = filteredContacts.slice(
+    (currentPage - 1) * rowsPerPage,
+    currentPage * rowsPerPage
   );
 
   const handleOpenAdd = () => {
@@ -208,8 +222,8 @@ export function BranchSecurityContactsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filteredContacts.length > 0 ? (
-                  filteredContacts.map((contact) => (
+                {paginatedContacts.length > 0 ? (
+                  paginatedContacts.map((contact) => (
                     <tr key={contact.id} className="hover:bg-muted/30 transition-colors">
                       <td className="p-4 font-medium flex items-center gap-2">
                         <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
@@ -268,6 +282,11 @@ export function BranchSecurityContactsPage() {
             </table>
           </div>
         </ScrollArea>
+        <Pagination 
+          currentPage={currentPage} 
+          totalPages={totalPages} 
+          onPageChange={setCurrentPage} 
+        />
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

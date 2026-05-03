@@ -94,8 +94,11 @@ model Incident {
 }
 
 enum IncidentClass {
+  VANDAL
+  CLIMBING
+  CUTTING_WIRES
+  OPENING_BOX
   SUSPICIOUS
-  THIEF
   @@map("incident_class")
 }
 

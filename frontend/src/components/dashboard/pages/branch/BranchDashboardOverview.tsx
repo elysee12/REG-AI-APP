@@ -2,8 +2,8 @@ import { Siren, ShieldAlert, Radio, Camera, CheckCircle2, MapPin, Bell, Send, Fi
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/lib/auth";
 import { useDataStore } from "@/lib/data";
-import { useEffect, useMemo } from "react";
-import { Kpi, SeverityPill, StatusPill, SummaryRow, QuickAction, MiniMap } from "../../shared/DashboardComponents";
+import { useEffect, useMemo, useState } from "react";
+import { Kpi, SeverityPill, StatusPill, SummaryRow, QuickAction, MiniMap, Pagination } from "../../shared/DashboardComponents";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
@@ -27,14 +27,29 @@ export function BranchDashboardOverview() {
   }, [user, securityContacts]);
 
   const branchDevices = useMemo(() => {
-    if (user?.role !== 'BRANCH_USER' || !user.branchId) return devices;
-    return devices.filter(d => String(d.branchId) === String(user.branchId));
-  }, [devices, user?.role, user?.branchId]);
+    const baseDevices = user?.role !== 'BRANCH_USER' || !user.branchId 
+      ? devices 
+      : devices.filter(d => String(d.branchId) === String(user.branchId));
+
+    return baseDevices.map(device => {
+      const hasActiveIncident = incidents.some(
+        i => i.deviceId === device.id && (i.status === 'active' || i.status === 'pending')
+      );
+      
+      return {
+        ...device,
+        incidentStatus: hasActiveIncident ? 'vandalism' : 'safe'
+      };
+    });
+  }, [devices, user?.role, user?.branchId, incidents]);
 
   const branchIncidents = useMemo(() => {
     if (user?.role === 'HQ_ADMIN') return incidents;
     return incidents.filter(i => String(i.branchId) === String(user?.branchId));
   }, [incidents, user?.role, user?.branchId]);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 5;
 
   const handleToggleAlarm = () => {
     if (isAlarmActive) {
@@ -75,6 +90,12 @@ export function BranchDashboardOverview() {
       .filter(i => i.severity === "critical" && i.status !== "solved")
       .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())[0];
   }, [branchIncidents, assignedDeviceIds, user?.role]);
+
+  const totalPages = Math.ceil(branchIncidents.length / rowsPerPage);
+  const paginatedIncidents = branchIncidents.slice(
+    (currentPage - 1) * rowsPerPage,
+    currentPage * rowsPerPage
+  );
 
   const getRelativeTime = (dateString: string) => {
     const date = new Date(dateString);
@@ -149,7 +170,7 @@ export function BranchDashboardOverview() {
             </div>
             <p className="text-sm text-muted-foreground">
               {isAlarmActive 
-                ? "Continuous audible alert is active due to a HIGHLY SUSPICIOUS detection." 
+                ? `Continuous audible alert is active due to a ${latestCritical?.aiClass || 'security'} detection.` 
                 : "Audible alarm system is standby. It will sound automatically on critical incidents."}
             </p>
           </div>
@@ -208,8 +229,8 @@ export function BranchDashboardOverview() {
                 </tr>
               </thead>
               <tbody>
-                {branchIncidents.length > 0 ? (
-                  branchIncidents.slice(0, 6).map((item) => (
+                {paginatedIncidents.length > 0 ? (
+                  paginatedIncidents.map((item) => (
                     <tr key={item.id} className="border-t border-border hover:bg-secondary/40 transition-colors">
                       <td className="px-4 py-3">
                         <span className="font-mono text-[10px] text-primary font-bold uppercase tracking-wider bg-primary/10 px-2 py-0.5 rounded">{item.ticketId}</span>
@@ -241,6 +262,11 @@ export function BranchDashboardOverview() {
               </tbody>
             </table>
           </div>
+          <Pagination 
+            currentPage={currentPage} 
+            totalPages={totalPages} 
+            onPageChange={setCurrentPage} 
+          />
         </div>
 
         <div className="space-y-4">

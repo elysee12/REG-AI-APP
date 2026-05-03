@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Download, Printer, MapPin, AlertTriangle, CheckCircle2, ShieldAlert } from "lucide-react";
 import { useAuthStore } from "@/lib/auth";
 import { useDataStore } from "@/lib/data";
-import { SeverityPill, StatusPill } from "../../shared/DashboardComponents";
+import { SeverityPill, StatusPill, Pagination } from "../../shared/DashboardComponents";
 import { toast } from "sonner";
 
 export function BranchReportsPage() {
@@ -18,6 +18,8 @@ export function BranchReportsPage() {
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
   const [selectedUnit, setSelectedUnit] = useState("all");
   const [selectedType, setSelectedType] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 5;
 
   useEffect(() => {
     fetchDevices();
@@ -27,6 +29,11 @@ export function BranchReportsPage() {
 
   const filteredIncidents = useMemo(() => {
     return incidents.filter(i => {
+      // Role-based data privacy filtering
+      if (user?.role === 'BRANCH_USER' && user.branchId && String(i.branchId) !== String(user.branchId)) {
+        return false;
+      }
+
       const incidentDate = new Date(i.time).toISOString().split('T')[0];
       const matchesDate = incidentDate >= dateFrom && incidentDate <= dateTo;
       const matchesUnit = selectedUnit === "all" || i.deviceId === selectedUnit;
@@ -34,6 +41,16 @@ export function BranchReportsPage() {
       return matchesDate && matchesUnit && matchesType;
     });
   }, [incidents, dateFrom, dateTo, selectedUnit, selectedType]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [dateFrom, dateTo, selectedUnit, selectedType]);
+
+  const totalPages = Math.ceil(filteredIncidents.length / rowsPerPage);
+  const paginatedIncidents = filteredIncidents.slice(
+    (currentPage - 1) * rowsPerPage,
+    currentPage * rowsPerPage
+  );
 
   const stats = useMemo(() => {
     const total = filteredIncidents.length;
@@ -118,7 +135,10 @@ export function BranchReportsPage() {
               className="block h-9 rounded-md border border-input bg-background px-3 text-xs min-w-[150px]"
             >
               <option value="all">All Incident Types</option>
-              <option value="HIGHLY SUSPICIOUS">HIGHLY SUSPICIOUS</option>
+              <option value="VANDAL">VANDAL</option>
+              <option value="CLIMBING">CLIMBING</option>
+              <option value="CUTTING_WIRES">CUTTING WIRES</option>
+              <option value="OPENING_BOX">OPENING BOX</option>
               <option value="SUSPICIOUS">SUSPICIOUS</option>
             </select>
           </div>
@@ -154,8 +174,8 @@ export function BranchReportsPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredIncidents.length > 0 ? (
-                filteredIncidents.map((item) => (
+              {paginatedIncidents.length > 0 ? (
+                paginatedIncidents.map((item) => (
                   <tr key={item.id} className="border-t border-border hover:bg-secondary/40 transition-colors">
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-2">
@@ -193,6 +213,11 @@ export function BranchReportsPage() {
             </tbody>
           </table>
         </div>
+        <Pagination 
+          currentPage={currentPage} 
+          totalPages={totalPages} 
+          onPageChange={setCurrentPage} 
+        />
       </div>
     </div>
   );

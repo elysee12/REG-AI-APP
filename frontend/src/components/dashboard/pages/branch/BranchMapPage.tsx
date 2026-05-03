@@ -1,18 +1,24 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { MiniMap, SeverityPill, StatusPill } from "../../shared/DashboardComponents";
 import { Filter, Search, MapPin, Camera } from "lucide-react";
 import { useDataStore } from "@/lib/data";
 import { useAuthStore } from "@/lib/auth";
+import { getDistrictCenter } from "@/lib/locations";
 
 export function BranchMapPage() {
   const user = useAuthStore((state) => state.user);
-  const { devices } = useDataStore();
+  const { devices, incidents, fetchDevices, fetchIncidents } = useDataStore();
   
   const [search, setSearch] = useState("");
   const [isClustered, setIsClustered] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<any>(null);
+
+  // Default center based on branch name or region
+  const branchCenter = useMemo(() => {
+    return getDistrictCenter(user?.branchName) || getDistrictCenter(user?.region);
+  }, [user]);
   
   // Filters state
   const [filters, setFilters] = useState({
@@ -20,9 +26,38 @@ export function BranchMapPage() {
     onlineOnly: true,
   });
 
+  useEffect(() => {
+    fetchDevices();
+    if (user?.branchId) {
+      fetchIncidents(String(user.branchId));
+    } else {
+      fetchIncidents();
+    }
+  }, [fetchDevices, fetchIncidents, user]);
+
+  // Enrich devices with real-time incident status
+  const enrichedDevices = useMemo(() => {
+    return devices.map(device => {
+      // A device has a 'vandalism' status if there's any active or pending incident for it
+      const hasActiveIncident = incidents.some(
+        i => i.deviceId === device.id && (i.status === 'active' || i.status === 'pending')
+      );
+      
+      return {
+        ...device,
+        incidentStatus: hasActiveIncident ? 'vandalism' : 'safe'
+      };
+    });
+  }, [devices, incidents]);
+
   const branchDevices = useMemo(() => {
-    return devices.filter(d => d.branchName === user?.branchName);
-  }, [devices, user]);
+    return enrichedDevices.filter(d => d.branchName === user?.branchName);
+  }, [enrichedDevices, user]);
+
+  const displayedSelectedDevice = useMemo(() => {
+    if (!selectedDevice) return null;
+    return enrichedDevices.find(d => d.id === selectedDevice.id) || selectedDevice;
+  }, [selectedDevice, enrichedDevices]);
 
   const filteredDevices = useMemo(() => {
     return branchDevices.filter(d => {
@@ -168,32 +203,33 @@ export function BranchMapPage() {
               isClustered={isClustered}
               onMarkerClick={setSelectedDevice}
               selectedId={selectedDevice?.id}
+              center={branchCenter || undefined}
             />
           </div>
           {/* Bottom detail card */}
-          {selectedDevice && (
+          {displayedSelectedDevice && (
             <div className="border-t border-border p-4 bg-secondary/40 animate-in slide-in-from-bottom-2 duration-300">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    {selectedDevice.incidentStatus === 'vandalism' ? (
+                    {displayedSelectedDevice.incidentStatus === 'vandalism' ? (
                       <SeverityPill level="critical" />
                     ) : (
                       <StatusPill status="solved" />
                     )}
-                    <span className="font-mono text-xs text-muted-foreground">{selectedDevice.id}</span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${selectedDevice.status === 'online' ? 'bg-success/10 text-success' : 'bg-muted/10 text-muted-foreground'}`}>
-                      {selectedDevice.status.toUpperCase()}
+                    <span className="font-mono text-xs text-muted-foreground">{displayedSelectedDevice.id}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${displayedSelectedDevice.status === 'online' ? 'bg-success/10 text-success' : 'bg-muted/10 text-muted-foreground'}`}>
+                      {displayedSelectedDevice.status.toUpperCase()}
                     </span>
-                    {selectedDevice.ipAddress && (
+                    {displayedSelectedDevice.ipAddress && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-secondary text-muted-foreground font-mono">
-                        {selectedDevice.ipAddress}
+                        {displayedSelectedDevice.ipAddress}
                       </span>
                     )}
                   </div>
                   <h3 className="mt-1 font-semibold">AI Unit Location</h3>
-                  <p className="text-xs text-muted-foreground">{selectedDevice.location.address}</p>
-                  <p className="text-[10px] text-muted-foreground mt-1">Last Data: {selectedDevice.lastData}</p>
+                  <p className="text-xs text-muted-foreground">{displayedSelectedDevice.location.address}</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">Last Data: {displayedSelectedDevice.lastData}</p>
                 </div>
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" onClick={() => window.location.href='/dashboard/incidents'}>View Incidents</Button>

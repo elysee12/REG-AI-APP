@@ -1,8 +1,11 @@
 import { IsString, IsNotEmpty, IsOptional, IsNumber, IsBoolean, IsEnum } from 'class-validator';
 
 export enum IncidentClass {
+  VANDAL = 'VANDAL',
+  CLIMBING = 'CLIMBING',
+  CUTTING_WIRES = 'CUTTING_WIRES',
+  OPENING_BOX = 'OPENING_BOX',
   SUSPICIOUS = 'SUSPICIOUS',
-  THIEF = 'THIEF',
 }
 
 export enum IncidentStatus {

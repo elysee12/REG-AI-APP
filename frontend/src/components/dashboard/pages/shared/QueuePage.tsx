@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { SeverityPill, StatusPill } from "../../shared/DashboardComponents";
+import { SeverityPill, StatusPill, Pagination } from "../../shared/DashboardComponents";
 import { Download, Filter, Search, X, Camera, MapPin, ShieldCheck, Clock, ExternalLink, Video, Image as ImageIcon, Activity, AlertTriangle, Loader2 } from "lucide-react";
 import { useDataStore } from "@/lib/data";
 import { useAuthStore } from "@/lib/auth";
@@ -21,6 +21,8 @@ export function QueuePage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [selectedIncidents, setSelectedIncidents] = useState<string[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 5;
 
   useEffect(() => {
     fetchDevices();
@@ -36,12 +38,16 @@ export function QueuePage() {
 
   const filteredIncidents = useMemo(() => {
     return incidents.filter(incident => {
+      // Role-based data privacy filtering
+      if (user?.role === 'BRANCH_USER' && user.branchId && String(incident.branchId) !== String(user.branchId)) {
+        return false;
+      }
+
       // Search filter
       const matchesSearch = search === "" || 
         incident.id.toLowerCase().includes(search.toLowerCase()) ||
         incident.location.toLowerCase().includes(search.toLowerCase()) ||
-        (incident.aiClass?.toString().trim().toUpperCase() === 'THIEF' ? "highly suspicious" : (incident.aiClass || "")).toLowerCase().includes(search.toLowerCase()) ||
-        (incident.alertStatus ? "highly suspicious" : "suspicious").toLowerCase().includes(search.toLowerCase());
+        (incident.aiClass || "").toLowerCase().includes(search.toLowerCase());
       
       if (!matchesSearch) return false;
 
@@ -65,6 +71,16 @@ export function QueuePage() {
       return true;
     });
   }, [incidents, search, statusFilter, activeFilters]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, statusFilter, activeFilters]);
+
+  const totalPages = Math.ceil(filteredIncidents.length / rowsPerPage);
+  const paginatedIncidents = filteredIncidents.slice(
+    (currentPage - 1) * rowsPerPage,
+    currentPage * rowsPerPage
+  );
 
   const handleOpenDetail = (incident: any) => {
     setSelectedIncident(incident);
@@ -176,8 +192,8 @@ export function QueuePage() {
               </tr>
             </thead>
             <tbody>
-              {filteredIncidents.length > 0 ? (
-                filteredIncidents.map((r) => (
+              {paginatedIncidents.length > 0 ? (
+                paginatedIncidents.map((r) => (
                   <tr key={r.id} className="border-t border-border hover:bg-secondary/40 transition-colors">
                     <td className="px-4 py-3">
                       <Checkbox 
@@ -190,7 +206,7 @@ export function QueuePage() {
                     </td>
                     <td className="px-4 py-3">
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${r.alertStatus ? "bg-primary text-primary-foreground" : "bg-warning text-warning-foreground"}`}>
-                        {r.alertStatus ? "HIGHLY SUSPICIOUS" : "SUSPICIOUS"}
+                        {r.aiClass || (r.alertStatus ? "ALERT" : "SUSPICIOUS")}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -239,6 +255,11 @@ export function QueuePage() {
             </tbody>
           </table>
         </div>
+        <Pagination 
+          currentPage={currentPage} 
+          totalPages={totalPages} 
+          onPageChange={setCurrentPage} 
+        />
         <div className="p-3 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
           <span>Showing {filteredIncidents.length} of {incidents.length} incidents {selectedIncidents.length > 0 && `(${selectedIncidents.length} selected)`}</span>
           <div className="flex gap-2">
@@ -269,13 +290,13 @@ export function QueuePage() {
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${selectedIncident?.alertStatus ? "bg-primary text-primary-foreground" : "bg-warning text-warning-foreground"}`}>
-                  {selectedIncident?.alertStatus ? "HIGHLY SUSPICIOUS" : "SUSPICIOUS"}
+                  {selectedIncident?.aiClass || (selectedIncident?.alertStatus ? "ALERT" : "SUSPICIOUS")}
                 </span>
                 <span className="font-mono text-[10px] text-primary font-bold uppercase tracking-wider bg-primary/10 px-2 py-0.5 rounded">{selectedIncident?.ticketId}</span>
               </div>
             </div>
             <DialogTitle className="text-2xl font-bold">
-              {selectedIncident?.aiClass?.toString().trim().toUpperCase() === 'THIEF' ? "HIGHLY SUSPICIOUS" : (selectedIncident?.aiClass || "AI Detection")} Alert — {selectedIncident?.deviceId}
+              {(selectedIncident?.aiClass || "AI Detection")} Alert — {selectedIncident?.deviceId}
             </DialogTitle>
             <DialogDescription>
               Incident detected at {selectedIncident?.location.split(' · ')[1]} Station Area
@@ -289,7 +310,7 @@ export function QueuePage() {
                 <Activity className="h-4 w-4" /> AI Detection Analysis
               </h3>
               <div className="bg-secondary/40 rounded-lg p-4 space-y-3">
-                <DetailRow label="AI Classification" value={selectedIncident?.aiClass?.toString().trim().toUpperCase() === 'THIEF' ? "HIGHLY SUSPICIOUS" : (selectedIncident?.aiClass || "N/A")} />
+                <DetailRow label="AI Classification" value={selectedIncident?.aiClass || "N/A"} />
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-muted-foreground">Confidence:</span>
                   <span className={`font-bold ${
@@ -299,7 +320,7 @@ export function QueuePage() {
                     {selectedIncident?.aiConfidence ? `${(selectedIncident.aiConfidence * 100).toFixed(1)}%` : "N/A"}
                   </span>
                 </div>
-                <DetailRow label="Alert Status" value={selectedIncident?.alertStatus === true ? "HIGHLY SUSPICIOUS" : selectedIncident?.alertStatus === false ? "SUSPICIOUS" : "N/A"} />
+                <DetailRow label="Alert Status" value={selectedIncident?.aiClass || (selectedIncident?.alertStatus ? "ALERT" : "SUSPICIOUS")} />
               </div>
 
               {/* Media Section */}
@@ -469,12 +490,14 @@ function PriorityBadge({ severity }: { severity: string }) {
 function AiClassBadge({ aiClass }: { aiClass?: string }) {
   const normalizedClass = aiClass?.toString().trim().toUpperCase();
   const map: Record<string, { label: string; class: string }> = {
-    THIEF: { label: "HIGHLY SUSPICIOUS", class: "bg-primary/15 text-primary border-primary/30" },
+    VANDAL: { label: "VANDAL", class: "bg-primary/15 text-primary border-primary/30" },
+    CLIMBING: { label: "CLIMBING", class: "bg-warning/15 text-warning border-warning/30" },
+    CUTTING_WIRES: { label: "CUTTING WIRES", class: "bg-primary/15 text-primary border-primary/30" },
+    OPENING_BOX: { label: "OPENING BOX", class: "bg-primary/15 text-primary border-primary/30" },
     SUSPICIOUS: { label: "SUSPICIOUS", class: "bg-warning/15 text-warning border-warning/30" },
-    NORMAL: { label: "NORMAL", class: "bg-success/15 text-success border-success/30" },
   };
   const config = normalizedClass ? map[normalizedClass] : null;
-  if (!config) return <span className="text-xs text-muted-foreground">-</span>;
+  if (!config) return <span className="text-xs text-muted-foreground">{aiClass || "-"}</span>;
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border uppercase ${config.class}`}>
       {config.label}

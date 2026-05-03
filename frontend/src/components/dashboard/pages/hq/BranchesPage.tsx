@@ -35,6 +35,7 @@ import {
 import { useDataStore, Branch } from "@/lib/data";
 import { Edit, Trash2, MoreHorizontal, Search, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { Pagination } from "../../shared/DashboardComponents";
 
 export function BranchesPage() {
   const { 
@@ -53,6 +54,8 @@ export function BranchesPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 5;
   
   const [provinces, setProvinces] = useState<string[]>([]);
   const [districts, setDistricts] = useState<string[]>([]);
@@ -111,6 +114,16 @@ export function BranchesPage() {
     b.name.toLowerCase().includes(search.toLowerCase()) ||
     b.region.toLowerCase().includes(search.toLowerCase()) ||
     b.address.toLowerCase().includes(search.toLowerCase())
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search]);
+
+  const totalPages = Math.ceil(filteredBranches.length / rowsPerPage);
+  const paginatedBranches = filteredBranches.slice(
+    (currentPage - 1) * rowsPerPage,
+    currentPage * rowsPerPage
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -219,7 +232,7 @@ export function BranchesPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredBranches.map((b) => (
+              {paginatedBranches.map((b) => (
                 <tr key={b.id} className="border-t border-border hover:bg-secondary/40">
                   <td className="px-4 py-3 font-medium">{b.name}</td>
                   <td className="px-4 py-3">{b.region}</td>
@@ -257,6 +270,11 @@ export function BranchesPage() {
             </tbody>
           </table>
         </div>
+        <Pagination 
+          currentPage={currentPage} 
+          totalPages={totalPages} 
+          onPageChange={setCurrentPage} 
+        />
       </div>
 
       {/* Add Branch Dialog */}

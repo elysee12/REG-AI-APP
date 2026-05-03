@@ -1,4 +1,4 @@
-import { Bell, Search, ShieldCheck, User, Mail, Building, MapPin, Edit2, Save, X, CheckCircle2, Clock as ClockIcon } from "lucide-react";
+import { Bell, Search, ShieldCheck, User, Mail, Building, MapPin, Edit2, Save, X, CheckCircle2, Clock as ClockIcon, KeyRound } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { NoSsr } from "../ui/no-ssr";
 import { memo, useEffect, useState, useMemo, useRef } from "react";
@@ -9,6 +9,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -59,13 +60,32 @@ export function Header({ title }: HeaderProps) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  
+  // Password change states
+  const [isPasswordMode, setIsPasswordMode] = useState(false);
+  const [passwordStep, setPasswordStep] = useState<"request" | "otp" | "new">("request");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [otp, setOtp] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+
   const alarmAudio = useRef<HTMLAudioElement | null>(null);
-  // Remove prevIncidentCount as we'll use timestamp-based logic
   
   const [profileData, setProfileData] = useState({
     fullName: user?.fullName || "",
     email: user?.email || "",
   });
+
+  useEffect(() => {
+    if (user) {
+      setProfileData({
+        fullName: user.fullName || "",
+        email: user.email || "",
+      });
+    }
+  }, [user]);
 
   const initials = user?.fullName
     ? user.fullName
@@ -85,6 +105,125 @@ export function Header({ title }: HeaderProps) {
       setUser({ ...user, ...updates });
       setIsEditing(false);
       toast.success("Profile updated successfully");
+    }
+  };
+
+  const requestPasswordChange = async () => {
+    if (!currentPassword) {
+      toast.error("Please enter your current password");
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const response = await fetch("http://localhost:3000/api/auth/request-password-change", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${useAuthStore.getState().token}`,
+        },
+        body: JSON.stringify({ currentPassword }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success("Verification code sent to your email");
+        setPasswordStep("otp");
+        setCooldown(60);
+        const timer = setInterval(() => {
+          setCooldown((prev) => {
+            if (prev <= 1) {
+              clearInterval(timer);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+      } else {
+        toast.error(data.message || "Failed to send verification code");
+      }
+    } catch (error) {
+      toast.error("Failed to connect to server");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const verifyPasswordChangeOtp = async () => {
+    if (!otp || otp.length !== 6) {
+      toast.error("Please enter a valid 6-digit code");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetch("http://localhost:3000/api/auth/verify-change-otp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${useAuthStore.getState().token}`,
+        },
+        body: JSON.stringify({
+          otp,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success("Code verified. Please enter your new password.");
+        setPasswordStep("new");
+      } else {
+        toast.error(data.message || "Invalid verification code");
+      }
+    } catch (error) {
+      toast.error("Failed to connect to server");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const changePassword = async () => {
+    if (!newPassword || newPassword.length < 8) {
+      toast.error("Password must be at least 8 characters");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetch("http://localhost:3000/api/auth/change-password-with-otp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${useAuthStore.getState().token}`,
+        },
+        body: JSON.stringify({
+          newPassword,
+          otp,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success("Password changed successfully!");
+        setIsPasswordMode(false);
+        setPasswordStep("request");
+        setOtp("");
+        setNewPassword("");
+        setConfirmPassword("");
+      } else {
+        toast.error(data.message || "Failed to change password");
+      }
+    } catch (error) {
+      toast.error("Failed to connect to server");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -160,21 +299,28 @@ export function Header({ title }: HeaderProps) {
     return false;
   };
 
-  // Handle Alarm sound for HIGHLY SUSPICIOUS (Branch Users Only - Assigned Devices or Branch)
+  // Handle Alarm sound for AI Detections (Branch Users Only - Assigned Devices or Branch)
   useEffect(() => {
     if (!user || user.role === 'HQ_ADMIN' || !incidents) return;
 
     const hasActiveThreat = incidents.some(i => {
-      const isHighlySuspicious = i.alertStatus === true || i.aiClass?.toString().trim().toUpperCase() === 'THIEF';
+      const isAlert = i.alertStatus === true;
       const isAssignedOrBranch = isIncidentAssignedOrBranch(i);
       const isActiveIncident = i.status === 'active' || i.status === 'pending';
       const isNewerThanStop = new Date(i.time).getTime() > lastAlarmStopTimestamp;
-      return isHighlySuspicious && isAssignedOrBranch && isActiveIncident && isNewerThanStop;
+      return isAlert && isAssignedOrBranch && isActiveIncident && isNewerThanStop;
     });
     
     if (hasActiveThreat && !isAlarmActive) {
+      const latestThreat = incidents.find(i => 
+        i.alertStatus === true && 
+        isIncidentAssignedOrBranch(i) && 
+        (i.status === 'active' || i.status === 'pending') &&
+        new Date(i.time).getTime() > lastAlarmStopTimestamp
+      );
+      
       setAlarmActive(true);
-      toast.error("HIGHLY SUSPICIOUS INCIDENT DETECTED!", {
+      toast.error(`${latestThreat?.aiClass || 'CRITICAL'} INCIDENT DETECTED!`, {
         duration: 10000,
         description: "Priority response required immediately."
       });
@@ -194,14 +340,13 @@ export function Header({ title }: HeaderProps) {
           return incident.aiConfidence >= 0.9;
         }
         
-        const isHighlySuspicious = incident.alertStatus === true || incident.aiClass?.toString().trim().toUpperCase() === 'THIEF';
-        return isHighlySuspicious && isIncidentAssignedOrBranch(incident);
+        return incident.alertStatus === true && isIncidentAssignedOrBranch(incident);
       })
       .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
       .slice(0, 5) // Show top 5 latest
       .map((incident) => ({
         id: incident.id,
-        title: incident.alertStatus ? 'HIGHLY SUSPICIOUS' : (incident.aiClass?.toString().trim().toUpperCase() === 'THIEF' ? 'HIGHLY SUSPICIOUS' : (incident.aiClass || 'AI Detection')),
+        title: incident.aiClass || 'AI Detection',
         message: `${incident.severity.toUpperCase()} severity incident at ${incident.location}`,
         time: new Date(incident.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         type: incident.severity === 'critical' ? 'warning' : 'info',
@@ -220,7 +365,7 @@ export function Header({ title }: HeaderProps) {
   return (
     <header className="h-16 shrink-0 border-b border-border bg-card flex items-center gap-4 px-4 md:px-6">
       <div className="min-w-0">
-        <div className="text-xs text-muted-foreground">REG ▸ Control Center</div>
+        <div className="text-xs text-muted-foreground">GRIDGuard AI ▸ Control Center</div>
         <h1 className="text-base font-semibold text-foreground truncate">{title}</h1>
       </div>
 
@@ -271,9 +416,14 @@ export function Header({ title }: HeaderProps) {
       {/* Profile Modal */}
       <Dialog open={isProfileOpen} onOpenChange={(open) => {
         setIsProfileOpen(open);
-        if (!open) setIsEditing(false);
+        if (!open) {
+          setIsEditing(false);
+          setIsPasswordMode(false);
+          setPasswordStep("request");
+          setCurrentPassword("");
+        }
       }}>
-        <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden border-none shadow-2xl">
+        <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden border-none shadow-2xl [&>button]:hidden">
           <div className="bg-gradient-to-br from-primary to-primary-dark p-8 text-primary-foreground relative">
             <div className="relative z-10 flex flex-col items-center">
               <div className="h-24 w-24 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-3xl font-bold border-4 border-white/30 shadow-xl mb-4">
@@ -284,97 +434,248 @@ export function Header({ title }: HeaderProps) {
                 <ShieldCheck className="h-3.5 w-3.5" /> {user?.role === "HQ_ADMIN" ? "HQ Administrator" : "Branch Operator"}
               </div>
             </div>
-            <div className="absolute top-0 right-0 p-4">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="text-white hover:bg-white/10" 
-                onClick={() => setIsProfileOpen(false)}
-              >
-                <X className="h-5 w-5" />
-              </Button>
-            </div>
+            {/* Primary Close Button (Top Right) */}
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="absolute top-4 right-4 z-50 h-10 w-10 text-white hover:bg-white/20 rounded-full transition-all border border-white/20" 
+              onClick={() => setIsProfileOpen(false)}
+            >
+              <X className="h-6 w-6" />
+            </Button>
           </div>
           
-          <div className="p-6 space-y-6 bg-card">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                  <User className="h-4 w-4 text-primary" /> Personal Details
-                </h3>
-                {!isEditing ? (
-                  <Button variant="ghost" size="sm" className="h-8 text-xs gap-1.5" onClick={() => setIsEditing(true)}>
-                    <Edit2 className="h-3 w-3" /> Edit
+          <div className="p-6 space-y-6 bg-card max-h-[60vh] overflow-y-auto">
+            {!isPasswordMode ? (
+              <>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                      <User className="h-4 w-4 text-primary" /> Personal Details
+                    </h3>
+                    {user?.role === "HQ_ADMIN" && (
+                      !isEditing ? (
+                        <Button variant="ghost" size="sm" className="h-8 text-xs gap-1.5" onClick={() => setIsEditing(true)}>
+                          <Edit2 className="h-3 w-3" /> Edit
+                        </Button>
+                      ) : (
+                        <div className="flex gap-2">
+                          <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setIsEditing(false)}>Cancel</Button>
+                          <Button size="sm" className="h-8 text-xs gap-1.5" onClick={handleSaveProfile}>
+                            <Save className="h-3 w-3" /> Save
+                          </Button>
+                        </div>
+                      )
+                    )}
+                  </div>
+                  
+                  <div className="grid gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] uppercase font-bold text-muted-foreground/70">Full Name</Label>
+                      <Input 
+                        value={profileData.fullName} 
+                        onChange={(e) => setProfileData({...profileData, fullName: e.target.value})}
+                        disabled={!isEditing}
+                        className={!isEditing ? "bg-secondary/30 border-transparent" : "border-primary/30"}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] uppercase font-bold text-muted-foreground/70">Email Address</Label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input 
+                          value={profileData.email} 
+                          onChange={(e) => setProfileData({...profileData, email: e.target.value})}
+                          disabled={!isEditing}
+                          className={`pl-10 ${!isEditing ? "bg-secondary/30 border-transparent" : "border-primary/30"}`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-border space-y-4">
+                  <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                    <Building className="h-4 w-4 text-primary" /> Assignment
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-3 rounded-lg bg-secondary/40 border border-border/50">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">Branch</span>
+                      <div className="text-sm font-semibold flex items-center gap-1.5">
+                        <Building className="h-3.5 w-3.5 text-primary" /> {user?.branchName}
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-lg bg-secondary/40 border border-border/50">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">Region</span>
+                      <div className="text-sm font-semibold flex items-center gap-1.5">
+                        <MapPin className="h-3.5 w-3.5 text-primary" /> {user?.region}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {user?.role === "BRANCH_USER" && (
+                  <div className="pt-4 border-t border-border flex flex-col gap-3">
+                    <Button 
+                      variant="outline" 
+                      className="w-full gap-2 border-primary/20 hover:bg-primary/5 text-primary"
+                      onClick={() => setIsPasswordMode(true)}
+                    >
+                      <KeyRound className="h-4 w-4" /> Change Account Password
+                    </Button>
+                    <Button 
+                      variant="secondary" 
+                      className="w-full lg:hidden" 
+                      onClick={() => setIsProfileOpen(false)}
+                    >
+                      Close Profile Window
+                    </Button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                <div className="flex items-center gap-2 mb-2">
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsPasswordMode(false)}>
+                    <X className="h-4 w-4" />
                   </Button>
-                ) : (
-                  <div className="flex gap-2">
-                    <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setIsEditing(false)}>Cancel</Button>
-                    <Button size="sm" className="h-8 text-xs gap-1.5" onClick={handleSaveProfile}>
-                      <Save className="h-3 w-3" /> Save
+                  <h3 className="font-bold">Security Settings</h3>
+                </div>
+
+                {passwordStep === "request" && (
+                  <div className="space-y-6 text-center py-2">
+                    <div className="mx-auto h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
+                      <KeyRound className="h-8 w-8 text-primary" />
+                    </div>
+                    <div className="space-y-2">
+                      <h3 className="font-semibold text-lg">Verify Your Identity</h3>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        To change your password, please enter your <strong>Current Password</strong>. We'll then send a verification code to your email.
+                      </p>
+                    </div>
+                    
+                    <div className="space-y-2 text-left">
+                      <Label htmlFor="current-password">Current Password</Label>
+                      <Input
+                        id="current-password"
+                        type="password"
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        placeholder="Enter your current password"
+                        required
+                      />
+                    </div>
+
+                    <Button
+                      onClick={requestPasswordChange}
+                      className="w-full h-11"
+                      disabled={isLoading || !currentPassword}
+                    >
+                      {isLoading ? "Verifying..." : "Verify & Send Code"}
+                    </Button>
+                  </div>
+                )}
+
+                {passwordStep === "otp" && (
+                  <div className="space-y-4">
+                    <p className="text-xs text-muted-foreground">
+                      Enter the 6-digit verification code sent to <strong>{user?.email}</strong>
+                    </p>
+                    <div className="space-y-2">
+                      <Label htmlFor="header-change-otp">Verification Code</Label>
+                      <Input
+                        id="header-change-otp"
+                        type="text"
+                        value={otp}
+                        onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        placeholder="000000"
+                        className="text-center text-lg tracking-widest font-mono"
+                        maxLength={6}
+                      />
+                    </div>
+                    <Button
+                      onClick={verifyPasswordChangeOtp}
+                      className="w-full"
+                      disabled={isLoading || otp.length !== 6}
+                    >
+                      {isLoading ? "Verifying..." : "Verify Code"}
+                    </Button>
+                    <p className="text-xs text-center text-muted-foreground">
+                      Didn't receive the code?{" "}
+                      <button
+                        type="button"
+                        onClick={requestPasswordChange}
+                        disabled={cooldown > 0}
+                        className="text-primary hover:underline disabled:text-muted-foreground"
+                      >
+                        {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend"}
+                      </button>
+                    </p>
+                  </div>
+                )}
+
+                {passwordStep === "new" && (
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="header-new-password">New Password</Label>
+                      <Input
+                        id="header-new-password"
+                        type="password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="Min. 8 characters"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="header-confirm-password">Confirm Password</Label>
+                      <Input
+                        id="header-confirm-password"
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Re-enter password"
+                      />
+                    </div>
+                    <Button
+                      onClick={changePassword}
+                      className="w-full"
+                      disabled={isLoading || !newPassword || !confirmPassword}
+                    >
+                      {isLoading ? "Changing..." : "Change Password"}
                     </Button>
                   </div>
                 )}
               </div>
-              
-              <div className="grid gap-4">
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] uppercase font-bold text-muted-foreground/70">Full Name</Label>
-                  <Input 
-                    value={profileData.fullName} 
-                    onChange={(e) => setProfileData({...profileData, fullName: e.target.value})}
-                    disabled={!isEditing}
-                    className={!isEditing ? "bg-secondary/30 border-transparent" : "border-primary/30"}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] uppercase font-bold text-muted-foreground/70">Email Address</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                      value={profileData.email} 
-                      onChange={(e) => setProfileData({...profileData, email: e.target.value})}
-                      disabled={!isEditing}
-                      className={`pl-10 ${!isEditing ? "bg-secondary/30 border-transparent" : "border-primary/30"}`}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-border space-y-4">
-              <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                <Building className="h-4 w-4 text-primary" /> Assignment
-              </h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-3 rounded-lg bg-secondary/40 border border-border/50">
-                  <span className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">Branch</span>
-                  <div className="text-sm font-semibold flex items-center gap-1.5">
-                    <Building className="h-3.5 w-3.5 text-primary" /> {user?.branchName}
-                  </div>
-                </div>
-                <div className="p-3 rounded-lg bg-secondary/40 border border-border/50">
-                  <span className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">Region</span>
-                  <div className="text-sm font-semibold flex items-center gap-1.5">
-                    <MapPin className="h-3.5 w-3.5 text-primary" /> {user?.region}
-                  </div>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
+          <div className="p-4 border-t border-border bg-secondary/10 flex justify-center sm:justify-end gap-3">
+             <Button 
+               variant="outline" 
+               className="w-full sm:w-auto font-bold border-primary/20 text-primary hover:bg-primary/5" 
+               onClick={() => setIsProfileOpen(false)}
+             >
+               CLOSE PROFILE
+             </Button>
+           </div>
         </DialogContent>
       </Dialog>
 
       {/* Notifications Modal */}
       <Dialog open={isNotificationsOpen} onOpenChange={setIsNotificationsOpen}>
-        <DialogContent className="sm:max-w-[425px] p-0 overflow-hidden border-none shadow-2xl">
+        <DialogContent className="sm:max-w-[425px] p-0 overflow-hidden border-none shadow-2xl [&>button]:hidden">
           <div className="p-4 border-b border-border bg-card flex items-center justify-between">
             <h2 className="font-bold flex items-center gap-2">
               <Bell className="h-4 w-4 text-primary" /> Notifications
               <span className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full">{dynamicNotifications.length}</span>
             </h2>
-            <Button variant="ghost" size="sm" className="text-[10px] h-7 uppercase font-bold text-muted-foreground hover:text-primary">
-              Mark all as read
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" className="text-[10px] h-7 uppercase font-bold text-muted-foreground hover:text-primary">
+                Mark all as read
+              </Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => setIsNotificationsOpen(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
           <div className="max-h-[400px] overflow-y-auto bg-card">
             {dynamicNotifications.length > 0 ? (

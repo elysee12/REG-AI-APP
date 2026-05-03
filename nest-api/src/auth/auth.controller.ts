@@ -93,18 +93,30 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async requestPasswordChange(@Request() req, @Body() dto: RequestPasswordChangeDto) {
     const userId = req.user.userId;
+    const user = await this.authService.getUserById(userId);
+    
+    if (!user) {
+      return { success: false, message: 'User not found' };
+    }
+
+    if (!dto.currentPassword) {
+      return { success: false, message: 'Current password is required' };
+    }
+
+    const isPasswordValid = await bcrypt.compare(dto.currentPassword, user.password);
+    if (!isPasswordValid) {
+      return { success: false, message: 'Current password is incorrect' };
+    }
+
     const result = await this.otpService.generatePasswordChangeOtp(userId);
     
     if (result.success && result.otp) {
-      const user = await this.authService.getUserById(userId);
-      if (user) {
-        await this.mailService.sendPasswordResetEmail(user.email, user.fullName, result.otp);
-      }
+      await this.mailService.sendPasswordResetEmail(user.email, user.fullName, result.otp);
     }
 
     return {
       success: true,
-      message: 'If your current password is correct, an OTP has been sent to your email.',
+      message: 'A verification code has been sent to your email.',
     };
   }
 

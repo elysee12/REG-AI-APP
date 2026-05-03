@@ -4,7 +4,7 @@ import * as bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 async function main() {
-  const password = await bcrypt.hash('REG-Admin-2026!', 10);
+  const password = await bcrypt.hash('GRIDGuard-Admin-2026!', 10);
 
   // Seed Admin User only
   const admin = await prisma.user.upsert({
@@ -58,7 +58,7 @@ async function main() {
   const incidents = [
     {
       deviceId: 'DEV-001',
-      aiClass: IncidentClass.THIEF,
+      aiClass: IncidentClass.VANDAL,
       aiConfidence: 0.95,
       alertStatus: true,
       videoPath: '/uploads/incidents/videos/incident-001.mp4',

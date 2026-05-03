@@ -1,8 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { MessageSquare, Phone, Bell, AlertCircle, Mail, MapPin, Camera, ShieldCheck, ExternalLink, Info, Loader2, MessageCircle, Activity, Video, Image as ImageIcon, AlertTriangle } from "lucide-react";
+import { MessageSquare, Phone, Bell, AlertCircle, Mail, MapPin, Camera, ShieldCheck, ExternalLink, Info, Loader2, MessageCircle, Activity, Video, Image as ImageIcon, AlertTriangle, ShieldAlert } from "lucide-react";
 import { useSearch } from "@tanstack/react-router";
 import { useDataStore } from "@/lib/data";
+import { useAuthStore } from "@/lib/auth";
 import { useEffect, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
@@ -10,50 +11,59 @@ import { toast } from "sonner";
 export function ResponsePage() {
   const { incidentId } = useSearch({ from: "/dashboard/response" });
   const { fetchIncidentById, broadcastIncidentAlert, broadcastWhatsappAlert } = useDataStore();
+  const user = useAuthStore((state) => state.user);
   const [incident, setIncident] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [isWhatsappLoading, setIsWhatsappLoading] = useState(false);
   const [broadcastMessage, setBroadcastMessage] = useState("");
+  const [isUnauthorized, setIsUnauthorized] = useState(false);
 
   useEffect(() => {
     if (incidentId) {
       setLoading(true);
       fetchIncidentById(incidentId).then((data) => {
-        setIncident(data);
         if (data) {
-          const professionalMessage = 
+          // Role-based data privacy filtering
+          if (user?.role === 'BRANCH_USER' && user.branchId && String(data.device?.branchId || data.branchId) !== String(user.branchId)) {
+            setIsUnauthorized(true);
+            setIncident(null);
+          } else {
+            setIncident(data);
+            setIsUnauthorized(false);
+            const professionalMessage = 
 `🚨 *URGENT SECURITY NOTIFICATION*
 
-The Control Room has *VERIFIED* a *HIGHLY SUSPICIOUS* activity in progress.
+The Control Room has *VERIFIED* a *${data.aiClass || 'CRITICAL'}* activity in progress.
 
 *Incident Details:*
 *Ticket ID:* ${data.ticketId}
-*Classification:* HIGHLY SUSPICIOUS
+*Classification:* ${data.aiClass || 'AI Detection'}
 *Confidence:* ${data.aiConfidence ? Math.round(data.aiConfidence * 100) : '95'}%
-*Unit ID:* ${data.device.id}
-*Site:* ${data.device.district} Station Area
+*Unit ID:* ${data.device?.id || 'Unknown'}
+*Site:* ${data.device?.district || 'Unknown'} Station Area
 
 📍 *Location:*
-*Address:* ${data.device.address}
-*GPS:* ${data.device.lat}, ${data.device.lng}
+*Address:* ${data.device?.address || 'Unknown'}
+*GPS:* ${data.device?.lat || '0'}, ${data.device?.lng || '0'}
 
 ⚠️ *INSTRUCTION:*
 Respond immediately to the site. This is a verified priority alert.
 
 🗺️ *Google Maps:*
-https://www.google.com/maps?q=${data.device.lat},${data.device.lng}
+https://www.google.com/maps?q=${data.device?.lat || '0'},${data.device?.lng || '0'}
 
 *Dashboard:* ${window.location.origin}/dashboard/response?incidentId=${data.id}`;
           
-          setBroadcastMessage(professionalMessage);
+            setBroadcastMessage(professionalMessage);
+          }
         }
         setLoading(false);
       });
     } else {
       setLoading(false);
     }
-  }, [incidentId, fetchIncidentById]);
+  }, [incidentId, fetchIncidentById, user]);
 
   const formatPhoneForWhatsApp = (phone: string) => {
     return phone.replace(/\D/g, "");
@@ -91,6 +101,18 @@ https://www.google.com/maps?q=${data.device.lat},${data.device.lng}
         <Skeleton className="h-[400px] w-full rounded-xl" />
         <Skeleton className="h-[400px] w-full rounded-xl" />
         <Skeleton className="h-[400px] w-full rounded-xl" />
+      </div>
+    );
+  }
+
+  if (isUnauthorized) {
+    return (
+      <div className="p-4 md:p-6 flex flex-col items-center justify-center min-h-[400px]">
+        <ShieldAlert className="h-12 w-12 text-destructive mb-4" />
+        <h2 className="text-xl font-semibold">Access Denied</h2>
+        <p className="text-muted-foreground text-center max-w-md">
+          This incident belongs to another branch. You are only authorized to view and respond to incidents within your assigned branch.
+        </p>
       </div>
     );
   }
@@ -291,8 +313,8 @@ https://www.google.com/maps?q=${data.device.lat},${data.device.lng}
         <h2 className="font-semibold flex items-center gap-2 mb-4"><Bell className="h-4 w-4 text-primary" />Incident Timeline</h2>
         <div className="relative border-l border-primary/30 ml-2 space-y-6 pl-6 pb-2">
           {[
-            { t: new Date(incident.time).toLocaleTimeString(), title: `Incident detected: ${incident.ticketId}`, who: "System", desc: `AI classified as ${incident.aiClass === 'THIEF' ? 'HIGHLY SUSPICIOUS' : (incident.aiClass || incident.type)} with ${incident.aiConfidence ? Math.round(incident.aiConfidence * 100) : '95'}% confidence.` },
-            { t: new Date(incident.time).toLocaleTimeString(), title: "Automated alert dispatched", who: "System", desc: `Notification (${incident.alertStatus ? 'HIGHLY SUSPICIOUS' : 'SUSPICIOUS'}) sent to linked security personnel.` },
+            { t: new Date(incident.time).toLocaleTimeString(), title: `Incident detected: ${incident.ticketId}`, who: "System", desc: `AI classified as ${incident.aiClass || incident.type} with ${incident.aiConfidence ? Math.round(incident.aiConfidence * 100) : '95'}% confidence.` },
+            { t: new Date(incident.time).toLocaleTimeString(), title: "Automated alert dispatched", who: "System", desc: `Notification (${incident.aiClass || (incident.alertStatus ? 'CRITICAL' : 'SUSPICIOUS')}) sent to linked security personnel.` },
           ].map((e, i) => (
             <div key={i} className="relative">
               <span className="absolute -left-[31px] top-0 h-2.5 w-2.5 rounded-full bg-primary ring-4 ring-primary/10" />
@@ -313,10 +335,9 @@ https://www.google.com/maps?q=${data.device.lat},${data.device.lng}
             <div className="flex justify-between">
               <span className="text-muted-foreground">AI Class:</span>
               <span className={`font-bold ${
-                incident.aiClass === 'THIEF' ? 'text-primary' :
-                incident.aiClass === 'SUSPICIOUS' ? 'text-warning' : 'text-success'
+                incident.alertStatus ? 'text-primary' : 'text-warning'
               }`}>
-                {incident.aiClass === 'THIEF' ? 'HIGHLY SUSPICIOUS' : (incident.aiClass || 'NORMAL')}
+                {incident.aiClass || 'AI Detection'}
               </span>
             </div>
             <div className="flex justify-between">

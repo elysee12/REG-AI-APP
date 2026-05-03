@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { useDataStore } from "@/lib/data";
 import { useAuthStore } from "@/lib/auth";
 import { User, Role, Mail, Eye, EyeOff, ShieldCheck, KeyRound } from "lucide-react";
+import { Pagination } from "../../shared/DashboardComponents";
 
 const API_BASE = "http://localhost:3000/api";
 
@@ -35,6 +36,9 @@ export function UsersPage() {
   const { users, branches, addUser, updateUser, disableUser, enableUser, fetchUsers, fetchBranches, secureUpdateUser } = useDataStore();
   const user = useAuthStore((state) => state.user);
   const [search, setSearch] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 5;
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
@@ -102,6 +106,16 @@ export function UsersPage() {
   const filteredUsers = users.filter((u) =>
     u.fullName.toLowerCase().includes(search.toLowerCase()) ||
     u.email.toLowerCase().includes(search.toLowerCase())
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search]);
+
+  const totalPages = Math.ceil(filteredUsers.length / rowsPerPage);
+  const paginatedUsers = filteredUsers.slice(
+    (currentPage - 1) * rowsPerPage,
+    currentPage * rowsPerPage
   );
 
   const handleOpenAdd = () => {
@@ -218,7 +232,7 @@ export function UsersPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredUsers.map((u) => (
+              {paginatedUsers.map((u) => (
                 <tr key={u.id} className="border-t border-border hover:bg-secondary/40">
                   <td className="px-4 py-3 font-medium">{u.fullName}</td>
                   <td className="px-4 py-3 text-muted-foreground">{u.email}</td>
@@ -300,6 +314,11 @@ export function UsersPage() {
             </tbody>
           </table>
         </div>
+        <Pagination 
+          currentPage={currentPage} 
+          totalPages={totalPages} 
+          onPageChange={setCurrentPage} 
+        />
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

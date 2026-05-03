@@ -50,7 +50,7 @@
 :root {
   --radius: 0.5rem;
 
-  /* REG palette converted to oklch */
+  /* GRIDGuard AI palette converted to oklch */
   --background: oklch(1 0 0);                          /* #FFFFFF */
   --foreground: oklch(0.18 0 0);                       /* #1A1A1A */
   --card: oklch(1 0 0);
@@ -58,7 +58,7 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.18 0 0);
 
-  --primary: oklch(0.595 0.235 27.5);                  /* #EF1C25 REG red */
+  --primary: oklch(0.595 0.235 27.5);                  /* #EF1C25 brand red */
   --primary-foreground: oklch(1 0 0);
   --primary-dark: oklch(0.5 0.215 27);                 /* #C8101A */
 

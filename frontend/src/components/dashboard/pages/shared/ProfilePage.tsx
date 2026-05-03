@@ -24,6 +24,7 @@ export function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
   const [passwordStep, setPasswordStep] = useState<"request" | "otp" | "new">("request");
+  const [currentPassword, setCurrentPassword] = useState("");
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -57,6 +58,10 @@ export function ProfilePage() {
   };
 
   const requestPasswordChange = async () => {
+    if (!currentPassword) {
+      toast.error("Please enter your current password");
+      return;
+    }
     setIsLoading(true);
     try {
       const response = await fetch("http://localhost:3000/api/auth/request-password-change", {
@@ -65,7 +70,7 @@ export function ProfilePage() {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`,
         },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ currentPassword }),
       });
 
       const data = await response.json();
@@ -174,6 +179,7 @@ export function ProfilePage() {
   const closePasswordDialog = () => {
     setIsPasswordDialogOpen(false);
     setPasswordStep("request");
+    setCurrentPassword("");
     setOtp("");
     setNewPassword("");
     setConfirmPassword("");
@@ -314,16 +320,28 @@ export function ProfilePage() {
                 <div className="space-y-2">
                   <h3 className="font-semibold text-lg">Verify Your Identity</h3>
                   <p className="text-sm text-muted-foreground">
-                    To change your password, we'll send a 6-digit verification code to your registered email:
+                    To change your password, please enter your <strong>Current Password</strong>. We'll then send a verification code to your email.
                   </p>
-                  <p className="font-medium text-foreground">{user?.email}</p>
                 </div>
+
+                <div className="space-y-2 text-left">
+                  <Label htmlFor="current-password-profile">Current Password</Label>
+                  <Input
+                    id="current-password-profile"
+                    type="password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder="Enter your current password"
+                    required
+                  />
+                </div>
+
                 <Button
                   onClick={requestPasswordChange}
                   className="w-full h-11"
-                  disabled={isLoading}
+                  disabled={isLoading || !currentPassword}
                 >
-                  {isLoading ? "Sending..." : "Send Verification Code"}
+                  {isLoading ? "Verifying..." : "Verify & Send Code"}
                 </Button>
               </div>
             )}

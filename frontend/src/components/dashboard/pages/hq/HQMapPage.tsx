@@ -4,6 +4,7 @@ import { MiniMap, SeverityPill } from "../../shared/DashboardComponents";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "@tanstack/react-router";
+import { getDistrictCenter } from "@/lib/locations";
 import { 
   Search, 
   Filter, 
@@ -55,38 +56,53 @@ export function HQMapPage() {
     fetchSecurityContacts();
   }, [fetchDevices, fetchBranches, fetchIncidents, fetchSecurityContacts]);
 
-  // Enhanced Device Data with Branch Info
-  const devicesWithDetails = useMemo(() => {
-    return devices.map(d => {
-      const branch = branches.find(b => b.id === d.branchId);
-      const contacts = securityContacts.filter(c => c.branchId === d.branchId);
-      const recentIncidents = incidents.filter(i => i.deviceId === d.id);
+  // Enhanced Branch Data for Map
+  const branchesWithStatus = useMemo(() => {
+    return branches.map(branch => {
+      // Find all devices for this branch
+      const branchDevices = devices.filter(d => String(d.branchId) === String(branch.id));
       
+      // Check if any device in this branch has an active incident
+      const hasIncident = incidents.some(i => 
+        branchDevices.some(d => d.id === i.deviceId) && 
+        (i.status === 'active' || i.status === 'pending')
+      );
+
+      // Extract district from address for coordinates
+      const addressParts = branch.address.split(', ');
+      const districtName = addressParts[2] || branch.region;
+      const coords = getDistrictCenter(districtName) || getDistrictCenter(branch.region);
+
       return {
-        ...d,
-        branchName: branch?.name || "Unknown Branch",
-        securityContacts: contacts,
-        recentIncidents,
+        ...branch,
+        id: String(branch.id),
+        hasIncident,
+        status: hasIncident ? 'vandalism' : 'online',
         location: {
-          lat: d.lat,
-          lng: d.lng,
-          address: d.address
-        }
+          lat: coords?.lat || -1.9441,
+          lng: coords?.lng || 30.0619,
+          address: branch.address
+        },
+        deviceCount: branchDevices.length,
+        activeIncidents: incidents.filter(i => 
+          branchDevices.some(d => d.id === i.deviceId) && 
+          (i.status === 'active' || i.status === 'pending')
+        ).length
       };
     });
-  }, [devices, branches, securityContacts, incidents]);
+  }, [branches, devices, incidents]);
 
-  // Filters
-  const filteredDevices = useMemo(() => {
-    return devicesWithDetails.filter(d => {
-      const matchesSearch = d.name.toLowerCase().includes(search.toLowerCase()) || d.id.toLowerCase().includes(search.toLowerCase());
-      const matchesBranch = branchFilter === "all" || String(d.branchId) === branchFilter;
+  // Filters for branches
+  const filteredBranches = useMemo(() => {
+    return branchesWithStatus.filter(b => {
+      const matchesSearch = b.name.toLowerCase().includes(search.toLowerCase()) || b.region.toLowerCase().includes(search.toLowerCase());
+      const matchesBranch = branchFilter === "all" || String(b.id) === branchFilter;
       const matchesStatus = statusFilter === "all" || 
-        (statusFilter === "problem" ? (d.incidentStatus === "vandalism" || d.status === "offline") : d.status === "online");
+        (statusFilter === "problem" ? b.hasIncident : !b.hasIncident);
       
       return matchesSearch && matchesBranch && matchesStatus;
     });
-  }, [devicesWithDetails, search, branchFilter, statusFilter]);
+  }, [branchesWithStatus, search, branchFilter, statusFilter]);
 
   // Live Incident Feed
   const liveIncidents = useMemo(() => {
@@ -94,26 +110,29 @@ export function HQMapPage() {
       .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
       .slice(0, 10)
       .map(i => {
-        const device = devicesWithDetails.find(d => d.id === i.deviceId);
+        const device = devices.find(d => d.id === i.deviceId);
+        const branch = branches.find(b => String(b.id) === String(device?.branchId));
         const severity = i.alertStatus ? 'critical' : 'warning';
-        return { ...i, device, severity };
+        return { ...i, device, branch, severity };
       });
-  }, [incidents, devicesWithDetails]);
+  }, [incidents, devices, branches]);
 
-  const handleMarkerClick = (device: any) => {
-    setSelectedDevice(device);
-    setSelectedId(device.id);
+  const handleMarkerClick = (branch: any) => {
+    setSelectedDevice(branch); // Using selectedDevice state for branch details too
+    setSelectedId(branch.id);
     setIsDetailsOpen(true);
   };
 
   const handleIncidentClick = (incident: any) => {
-    if (incident.device) {
-      setSelectedId(incident.device.id);
-      setSelectedDevice(incident.device);
-      // Automatically open details for critical incidents
-      const severity = incident.alertStatus ? 'critical' : 'warning';
-      if (severity === 'critical' || severity === 'high') {
-        setIsDetailsOpen(true);
+    if (incident.branch) {
+      const branchOnMap = branchesWithStatus.find(b => b.id === incident.branch.id);
+      if (branchOnMap) {
+        setSelectedId(branchOnMap.id);
+        setSelectedDevice(branchOnMap);
+        // Automatically open details for critical incidents
+        if (incident.severity === 'critical') {
+          setIsDetailsOpen(true);
+        }
       }
     }
   };
@@ -158,8 +177,8 @@ export function HQMapPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="online">Online Only</SelectItem>
-              <SelectItem value="problem">Problem Sites</SelectItem>
+              <SelectItem value="online">Healthy Only</SelectItem>
+              <SelectItem value="problem">Alert Branches</SelectItem>
             </SelectContent>
           </Select>
 
@@ -175,8 +194,8 @@ export function HQMapPage() {
         {/* Central Map */}
         <div className="flex-1 relative">
           <MiniMap 
-            items={filteredDevices} 
-            type="device"
+            items={filteredBranches} 
+            type="branch"
             selectedId={selectedId || undefined}
             onMarkerClick={handleMarkerClick}
           />
@@ -257,64 +276,60 @@ export function HQMapPage() {
             <div className="flex items-start justify-between mb-6">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className={`h-2.5 w-2.5 rounded-full ${selectedDevice?.status === 'online' ? 'bg-success' : 'bg-warning'}`} />
-                  <span className="font-mono text-xs text-primary font-bold uppercase tracking-widest bg-primary/10 px-2 py-0.5 rounded">{selectedDevice?.id}</span>
+                  <span className={`h-2.5 w-2.5 rounded-full ${!selectedDevice?.hasIncident ? 'bg-success' : 'bg-destructive animate-pulse'}`} />
+                  <span className="font-mono text-xs text-primary font-bold uppercase tracking-widest bg-primary/10 px-2 py-0.5 rounded">BRANCH-{selectedDevice?.id}</span>
                 </div>
-                <DialogTitle className="text-2xl font-bold">{selectedDevice?.district} Station Area</DialogTitle>
+                <DialogTitle className="text-2xl font-bold">{selectedDevice?.name}</DialogTitle>
                 <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-1">
                   <MapPin className="h-3.5 w-3.5" /> {selectedDevice?.location?.address}
                 </p>
               </div>
               <div className="text-right">
                 <div className="px-3 py-1 rounded bg-secondary/50 border border-border">
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase">Branch</p>
-                  <p className="font-bold text-primary">{selectedDevice?.branchName}</p>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase">Region</p>
+                  <p className="font-bold text-primary">{selectedDevice?.region}</p>
                 </div>
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Live Stream View */}
+              {/* Branch Stats & Status */}
               <div className="space-y-4">
-                <div className="aspect-video bg-black rounded-xl overflow-hidden border border-border relative flex items-center justify-center group">
-                  {selectedDevice?.ipAddress ? (
-                    <iframe 
-                      src={`http://10.227.231.210:8000/stream`} 
-                      className="w-full h-full border-0"
-                      title="Tower Live Stream"
-                    />
-                  ) : (
-                    <div className="text-center p-4">
-                      <Radio className="h-8 w-8 text-white/20 mx-auto mb-2" />
-                      <p className="text-xs text-white/50 italic">Live Feed Offline</p>
+                <div className="bg-secondary/30 p-4 rounded-xl border border-border/50 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Camera className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-semibold">Total AI Units</span>
                     </div>
-                  )}
-                  <div className="absolute top-3 left-3 px-2 py-0.5 rounded bg-primary/90 text-white text-[10px] font-bold flex items-center gap-1.5">
-                    <div className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" /> LIVE STREAM
+                    <span className="font-bold text-lg">{selectedDevice?.deviceCount || 0}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <ShieldAlert className="h-4 w-4 text-destructive" />
+                      <span className="text-sm font-semibold">Active Alerts</span>
+                    </div>
+                    <span className={`font-bold text-lg ${selectedDevice?.activeIncidents > 0 ? 'text-destructive' : 'text-success'}`}>
+                      {selectedDevice?.activeIncidents || 0}
+                    </span>
+                  </div>
+                  <div className="pt-2 border-t border-border/50">
+                    <div className="flex items-center justify-between text-[10px] font-bold uppercase text-muted-foreground mb-1">
+                      <span>Network Health</span>
+                      <span>{selectedDevice?.hasIncident ? '65%' : '100%'}</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
+                      <div className={`h-full ${selectedDevice?.hasIncident ? 'bg-warning w-[65%]' : 'bg-success w-full'}`} />
+                    </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="bg-secondary/30 p-3 rounded-lg border border-border/50">
-                    <div className="flex items-center gap-1.5 text-muted-foreground text-[10px] font-bold uppercase mb-1">
-                      <Battery className="h-3 w-3" /> Battery
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold">92%</span>
-                      <div className="h-1.5 w-12 bg-secondary rounded-full overflow-hidden">
-                        <div className="h-full bg-success w-[92%]" />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="bg-secondary/30 p-3 rounded-lg border border-border/50">
-                    <div className="flex items-center gap-1.5 text-muted-foreground text-[10px] font-bold uppercase mb-1">
-                      <Zap className="h-3 w-3" /> Connectivity
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold">4G/LTE</span>
-                      <Activity className="h-3.5 w-3.5 text-success" />
-                    </div>
-                  </div>
+                <div className="bg-primary/5 p-4 rounded-xl border border-primary/20">
+                  <h4 className="text-[10px] font-bold uppercase text-primary mb-2">Live Status Summary</h4>
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    {selectedDevice?.hasIncident 
+                      ? `ATTENTION: ${selectedDevice.activeIncidents} active security breaches detected in ${selectedDevice.name}. Emergency protocols recommended.`
+                      : `All ${selectedDevice?.deviceCount || 0} AI surveillance units in ${selectedDevice?.name} are reporting normal activity. Area is secure.`}
+                  </p>
                 </div>
               </div>
 
@@ -322,30 +337,24 @@ export function HQMapPage() {
               <div className="space-y-6">
                 <section>
                   <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
-                    <ShieldAlert className="h-4 w-4 text-primary" /> Branch Security Team
+                    <ShieldAlert className="h-4 w-4 text-primary" /> Branch Management
                   </h3>
                   <div className="space-y-2">
-                    {selectedDevice?.securityContacts?.length > 0 ? (
-                      selectedDevice.securityContacts.map((c: any) => (
-                        <div key={c.id} className="p-3 rounded-lg bg-secondary/30 border border-border flex items-center justify-between group hover:border-primary/30 transition-colors">
-                          <div>
-                            <p className="font-bold text-sm">{c.name}</p>
-                            <p className="text-[11px] text-muted-foreground">{c.phone}</p>
-                          </div>
-                          <a href={`tel:${c.phone}`} className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary hover:text-white transition-all">
-                            <Phone className="h-4 w-4" />
-                          </a>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-xs text-muted-foreground italic p-4 bg-secondary/20 rounded-lg text-center">No emergency contacts listed for this branch.</p>
-                    )}
+                    <div className="p-3 rounded-lg bg-secondary/30 border border-border flex items-center justify-between group hover:border-primary/30 transition-colors">
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground mb-0.5">Contact Person</p>
+                        <p className="font-bold text-sm">Branch Manager</p>
+                      </div>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full bg-primary/10 text-primary">
+                        <Phone className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </section>
 
                 <div className="space-y-3">
-                  <Button className="w-full font-bold h-11 shadow-elevated gap-2">
-                    <Siren className="h-4 w-4" /> INITIATE EMERGENCY DISPATCH
+                  <Button className="w-full font-bold h-11 shadow-elevated gap-2" onClick={() => navigate({ to: '/dashboard/branches' })}>
+                    <Building2 className="h-4 w-4" /> MANAGE BRANCH ASSETS
                   </Button>
                   <div className="flex gap-2">
                     <Button variant="outline" className="flex-1 text-xs" onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${selectedDevice?.location?.lat},${selectedDevice?.location?.lng}`, '_blank')}>

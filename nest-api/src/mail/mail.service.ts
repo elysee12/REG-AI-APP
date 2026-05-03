@@ -33,13 +33,13 @@ export class MailService {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>REG AI - Account Notification</title>
+  <title>GRIDGuard AI - Account Notification</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
     <tr>
       <td style="background: linear-gradient(135deg, #EF1C25 0%, #C8101A 100%); padding: 30px 40px; text-align: center;">
-        <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600;">REG AI</h1>
+        <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600;">GRIDGuard AI</h1>
         <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 14px;">AI-Powered Vandalism Detection</p>
       </td>
     </tr>
@@ -50,8 +50,8 @@ export class MailService {
     </tr>
     <tr>
       <td style="background-color: #f5f5f5; padding: 20px 40px; text-align: center; border-top: 1px solid #e0e0e0;">
-        <p style="color: #666666; margin: 0; font-size: 12px;">This is an automated message from REG AI. Please do not reply to this email.</p>
-        <p style="color: #999999; margin: 8px 0 0; font-size: 11px;">&copy; ${new Date().getFullYear()} REG AI. All rights reserved.</p>
+        <p style="color: #666666; margin: 0; font-size: 12px;">This is an automated message from GRIDGuard AI. Please do not reply to this email.</p>
+        <p style="color: #999999; margin: 8px 0 0; font-size: 11px;">&copy; ${new Date().getFullYear()} GRIDGuard AI. All rights reserved.</p>
       </td>
     </tr>
   </table>
@@ -61,9 +61,9 @@ export class MailService {
 
   async sendWelcomeEmail(to: string, fullName: string, password: string): Promise<void> {
     const html = this.getHtmlContent(`
-      <h2 style="color: #1A1A1A; margin: 0 0 24px; font-size: 22px; font-weight: 600;">Welcome to REG AI!</h2>
+      <h2 style="color: #1A1A1A; margin: 0 0 24px; font-size: 22px; font-weight: 600;">Welcome to GRIDGuard AI!</h2>
       <p style="color: #444444; margin: 0 0 20px; font-size: 15px; line-height: 1.6;">Dear <strong>${fullName}</strong>,</p>
-      <p style="color: #444444; margin: 0 0 20px; font-size: 15px; line-height: 1.6;">Your account has been successfully created. You can now access the REG AI platform using your credentials.</p>
+      <p style="color: #444444; margin: 0 0 20px; font-size: 15px; line-height: 1.6;">Your account has been successfully created. You can now access the GRIDGuard AI platform using your credentials.</p>
       <div style="background-color: #f8f8f8; border-radius: 8px; padding: 20px; margin: 24px 0;">
         <p style="margin: 0 0 12px; color: #666666; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">Your Login Credentials</p>
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
@@ -86,9 +86,9 @@ export class MailService {
 
     try {
       await this.transporter.sendMail({
-        from: `"REG AI" <${process.env.SMTP_USER || 'noreply@regai.com'}>`,
+        from: `"GRIDGuard AI" <${process.env.SMTP_USER || 'noreply@gridguard.ai'}>`,
         to,
-        subject: 'Welcome to REG AI - Your Account is Ready',
+        subject: 'Welcome to GRIDGuard AI - Your Account is Ready',
         html,
       });
     } catch (error) {
@@ -115,9 +115,9 @@ export class MailService {
     try {
       console.log(`Attempting to send password reset email to ${to}...`);
       await this.transporter.sendMail({
-        from: `"REG AI" <${process.env.SMTP_USER || 'noreply@regai.com'}>`,
+        from: `"GRIDGuard AI" <${process.env.SMTP_USER || 'noreply@gridguard.ai'}>`,
         to,
-        subject: 'REG AI - Password Reset Verification Code',
+        subject: 'GRIDGuard AI - Password Reset Verification Code',
         html,
       });
       console.log(`Password reset email successfully sent to ${to}`);
@@ -143,9 +143,9 @@ export class MailService {
 
     try {
       await this.transporter.sendMail({
-        from: `"REG AI" <${process.env.SMTP_USER || 'noreply@regai.com'}>`,
+        from: `"GRIDGuard AI" <${process.env.SMTP_USER || 'noreply@gridguard.ai'}>`,
         to,
-        subject: 'REG AI - Password Changed Successfully',
+        subject: 'GRIDGuard AI - Password Changed Successfully',
         html,
       });
     } catch (error) {
@@ -159,14 +159,14 @@ export class MailService {
     const html = this.getHtmlContent(`
       <h2 style="color: #EF1C25; margin: 0 0 24px; font-size: 22px; font-weight: 600;">URGENT: Verified Security Incident</h2>
       <p style="color: #444444; margin: 0 0 20px; font-size: 15px; line-height: 1.6;">Dear <strong>${contactName}</strong>,</p>
-      <p style="color: #444444; margin: 0 0 20px; font-size: 15px; line-height: 1.6;">The Control Room has <strong>VERIFIED</strong> a <strong>HIGHLY SUSPICIOUS</strong> activity in progress at one of your assigned sites. Please respond immediately.</p>
+      <p style="color: #444444; margin: 0 0 20px; font-size: 15px; line-height: 1.6;">The Control Room has <strong>VERIFIED</strong> a <strong>${incident.aiClass || 'CRITICAL'}</strong> activity in progress at one of your assigned sites. Please respond immediately.</p>
       
       <div style="background-color: #f8f8f8; border-radius: 8px; padding: 20px; margin: 24px 0; border-left: 4px solid #EF1C25;">
         <p style="margin: 0 0 12px; color: #666666; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">Incident Verification Details</p>
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
           <tr>
             <td style="padding: 4px 0; color: #444444; font-size: 14px;"><strong>Status:</strong></td>
-            <td style="padding: 4px 0; color: #EF1C25; font-size: 14px; text-align: right;"><strong>HIGHLY SUSPICIOUS (Verified)</strong></td>
+            <td style="padding: 4px 0; color: #EF1C25; font-size: 14px; text-align: right;"><strong>${incident.aiClass || 'CRITICAL'} (Verified)</strong></td>
           </tr>
           <tr>
             <td style="padding: 4px 0; color: #444444; font-size: 14px;"><strong>Site:</strong></td>
@@ -207,7 +207,7 @@ export class MailService {
 
     try {
       await this.transporter.sendMail({
-        from: `"REG AI Alerts" <${process.env.SMTP_USER || 'alerts@regai.com'}>`,
+        from: `"GRIDGuard AI Alerts" <${process.env.SMTP_USER || 'alerts@gridguard.ai'}>`,
         to,
         subject: `CRITICAL ALERT: ${incident.aiClass || 'Incident'} detected at ${incident.device.name}`,
         html,
@@ -247,9 +247,9 @@ export class MailService {
 
     try {
       await this.transporter.sendMail({
-        from: `"REG AI Security" <${process.env.SMTP_USER || 'security@regai.com'}>`,
+        from: `"GRIDGuard AI Security" <${process.env.SMTP_USER || 'security@gridguard.ai'}>`,
         to,
-        subject: `URGENT BROADCAST: Incident ${incident.id.slice(0, 8).toUpperCase()}`,
+        subject: `Security Broadcast: ${incident.device.name}`,
         html,
       });
     } catch (error) {
@@ -257,4 +257,3 @@ export class MailService {
     }
   }
 }
-

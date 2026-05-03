@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { SeverityPill, StatusPill } from "../../shared/DashboardComponents";
-import { Camera, MapPin, Radio, ShieldCheck, AlertTriangle, Clock, Send, FileText, X, Video, Activity, Sparkles, CheckCircle2 } from "lucide-react";
+import { SeverityPill, StatusPill, Pagination } from "../../shared/DashboardComponents";
+import { Camera, MapPin, Radio, ShieldCheck, AlertTriangle, Clock, Send, FileText, X, Video, Activity, Sparkles, CheckCircle2, Pagination as PaginationIcon } from "lucide-react";
 import { useDataStore } from "@/lib/data";
 import { useAuthStore } from "@/lib/auth";
 import { useNavigate } from "@tanstack/react-router";
@@ -14,18 +14,37 @@ export function IncidentsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("Camera Live");
   const [search, setSearch] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 5;
   const navigate = useNavigate();
 
-  const filteredIncidents = incidents.filter(incident => {
-    // Only show Active and Pending incidents
-    if (incident.status === 'solved' || incident.status === 'closed') return false;
-    
-    const searchLower = search.toLowerCase();
-    return (
-      incident.deviceId.toLowerCase().includes(searchLower) ||
-      incident.location.toLowerCase().includes(searchLower)
-    );
-  });
+  const filteredIncidents = useMemo(() => {
+    return incidents.filter(incident => {
+      // Role-based data privacy filtering
+      if (user?.role === 'BRANCH_USER' && user.branchId && String(incident.branchId) !== String(user.branchId)) {
+        return false;
+      }
+
+      // Only show Active and Pending incidents
+      if (incident.status === 'solved' || incident.status === 'closed') return false;
+      
+      const searchLower = search.toLowerCase();
+      return (
+        incident.deviceId.toLowerCase().includes(searchLower) ||
+        incident.location.toLowerCase().includes(searchLower)
+      );
+    });
+  }, [incidents, search]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search]);
+
+  const totalPages = Math.ceil(filteredIncidents.length / rowsPerPage);
+  const paginatedIncidents = filteredIncidents.slice(
+    (currentPage - 1) * rowsPerPage,
+    currentPage * rowsPerPage
+  );
 
   useEffect(() => {
     fetchDevices();
@@ -39,7 +58,9 @@ export function IncidentsPage() {
     }
   }, [filteredIncidents, selectedId]);
 
-  const selectedIncident = filteredIncidents.find(i => i.id === selectedId) || filteredIncidents[0];
+  const selectedIncident = useMemo(() => {
+    return filteredIncidents.find(i => i.id === selectedId) || filteredIncidents[0];
+  }, [filteredIncidents, selectedId]);
   
   if (!selectedIncident && filteredIncidents.length === 0) {
     return (
@@ -120,10 +141,10 @@ export function IncidentsPage() {
             <div>Generated on: ${new Date().toLocaleString()}</div>
           </div>
           <div class="section">
-            <div class="label">AI Class:</div> ${selectedIncident.aiClass === 'THIEF' ? 'HIGHLY SUSPICIOUS' : (selectedIncident.aiClass || 'N/A')}
+            <div class="label">AI Class:</div> ${selectedIncident.aiClass || 'N/A'}
           </div>
           <div class="section">
-            <div class="label">Alert Status:</div> ${selectedIncident.alertStatus ? 'HIGHLY SUSPICIOUS (Alert)' : 'SUSPICIOUS (Activity)'}
+            <div class="label">Alert Status:</div> ${selectedIncident.aiClass || (selectedIncident.alertStatus ? 'CRITICAL' : 'SUSPICIOUS')}
           </div>
           <div class="section">
             <div class="label">Confidence:</div> ${Math.round((selectedIncident.aiConfidence || 0) * 100)}%
@@ -152,7 +173,7 @@ export function IncidentsPage() {
           </ul>
           
           <div style="margin-top: 50px; border-top: 1px solid #ccc; padding-top: 20px; font-size: 12px; color: #666;">
-            &copy; ${new Date().getFullYear()} Infrastructure Protection System - REG National Network
+            &copy; ${new Date().getFullYear()} GRIDGuard AI - Infrastructure Protection System - National Network
           </div>
           <script>window.print();</script>
         </body>
@@ -176,8 +197,8 @@ export function IncidentsPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div className="overflow-y-auto divide-y divide-border">
-          {filteredIncidents.map((i) => (
+        <div className="flex-1 overflow-y-auto divide-y divide-border">
+          {paginatedIncidents.map((i) => (
             <button
               key={i.id}
               onClick={() => setSelectedId(i.id)}
@@ -186,18 +207,25 @@ export function IncidentsPage() {
               <div className="flex items-center justify-between">
                 <span className="font-mono text-[10px] text-primary font-bold uppercase tracking-wider bg-primary/10 px-2 py-0.5 rounded">{i.ticketId}</span>
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${i.alertStatus ? "bg-primary text-primary-foreground" : "bg-warning text-warning-foreground"}`}>
-                  {i.alertStatus ? "HIGHLY SUSPICIOUS" : "SUSPICIOUS"}
+                  {i.aiClass || (i.alertStatus ? "CRITICAL" : "SUSPICIOUS")}
                 </span>
               </div>
               <div className="mt-2 font-bold text-sm text-foreground">{i.deviceId}</div>
               <div className="text-[11px] text-muted-foreground mt-0.5">{i.location.split(' · ')[1]} Station Area</div>
-              <div className="text-xs text-muted-foreground mt-2 font-medium">{i.aiClass === 'THIEF' ? "HIGHLY SUSPICIOUS" : (i.aiClass || "AI Detection")}</div>
+              <div className="text-xs text-muted-foreground mt-2 font-medium">{i.aiClass || "AI Detection"}</div>
               <div className="mt-2 flex items-center gap-2 text-xs">
                 <Clock className="h-3 w-3 text-muted-foreground" />
                 <span className="text-muted-foreground">{getRelativeTime(i.time)}</span>
               </div>
             </button>
           ))}
+        </div>
+        <div className="p-4 border-t border-border">
+          <Pagination 
+            currentPage={currentPage} 
+            totalPages={totalPages} 
+            onPageChange={setCurrentPage} 
+          />
         </div>
       </div>
 
@@ -210,19 +238,19 @@ export function IncidentsPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${selectedIncident.alertStatus ? "bg-primary text-primary-foreground" : "bg-warning text-warning-foreground"}`}>
-                      {selectedIncident.alertStatus ? "HIGHLY SUSPICIOUS" : "SUSPICIOUS"}
+                      {selectedIncident.aiClass || (selectedIncident.alertStatus ? "CRITICAL" : "SUSPICIOUS")}
                     </span>
                     <span className="font-mono text-[10px] text-primary font-bold uppercase tracking-wider bg-primary/10 px-2 py-0.5 rounded">{selectedIncident.ticketId}</span>
                   </div>
-                  <h1 className="mt-2 text-xl font-bold">{selectedIncident.aiClass === 'THIEF' ? "HIGHLY SUSPICIOUS" : (selectedIncident.aiClass || "AI Detection")} — {selectedIncident.deviceId}</h1>
+                  <h1 className="mt-2 text-xl font-bold">{selectedIncident.aiClass || "AI Detection"} — {selectedIncident.deviceId}</h1>
                   <p className="text-sm text-muted-foreground">{selectedIncident.location.split(' · ')[1]} Station Area</p>
                 </div>
                 <Button variant="ghost" size="icon" onClick={() => setSelectedId(null)}><X className="h-4 w-4" /></Button>
               </div>
               <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
                 <Meta label="Detection time" value={formatTime(selectedIncident.time)} />
-                <Meta label="AI Class" value={selectedIncident.aiClass === 'THIEF' ? "HIGHLY SUSPICIOUS" : (selectedIncident.aiClass || "N/A")} />
-                <Meta label="Alert Status" value={selectedIncident.alertStatus ? "HIGHLY SUSPICIOUS" : "SUSPICIOUS"} />
+                <Meta label="AI Class" value={selectedIncident.aiClass || "N/A"} />
+                <Meta label="Alert Status" value={selectedIncident.aiClass || (selectedIncident.alertStatus ? "CRITICAL" : "SUSPICIOUS")} />
                 <Meta label="Confidence" value={`${Math.round((selectedIncident.aiConfidence || 0) * 100)}%`} />
                 <Meta label="Workflow Status" value={selectedIncident.status.toUpperCase()} />
                 <Meta label="Device ID" value={selectedIncident.deviceId} />
@@ -331,7 +359,7 @@ export function IncidentsPage() {
                         </div>
                         <div className="flex justify-between border-b border-border/50 pb-1">
                           <span>T-50ms: AI Classification triggered</span>
-                          <span className="text-primary">{selectedIncident.aiClass === 'THIEF' ? 'HIGHLY SUSPICIOUS' : (selectedIncident.aiClass || "Detection")}</span>
+                          <span className="text-primary">{selectedIncident.aiClass || "Detection"}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>T-120ms: Local alarm broadcast</span>
@@ -353,10 +381,10 @@ export function IncidentsPage() {
                     <div className="space-y-4 text-sm leading-relaxed">
                       <p>
                         <span className="font-bold text-primary">Detection Analysis:</span> At {formatTime(selectedIncident.time)}, 
-                        AI Unit {selectedIncident.deviceId} identified high-probability <span className="font-bold text-primary">{selectedIncident.aiClass === 'THIEF' ? 'HIGHLY SUSPICIOUS' : (selectedIncident.aiClass || "Unauthorized")}</span> behavior.
+                        AI Unit {selectedIncident.deviceId} identified high-probability <span className="font-bold text-primary">{selectedIncident.aiClass || "Unauthorized"}</span> behavior.
                       </p>
                       <p>
-                        <span className="font-bold text-primary">Contextual Factors:</span> The pattern matches known <span className="font-bold text-primary">{selectedIncident.alertStatus ? 'HIGHLY SUSPICIOUS' : 'SUSPICIOUS'}</span> signatures 
+                        <span className="font-bold text-primary">Contextual Factors:</span> The pattern matches known <span className="font-bold text-primary">{selectedIncident.aiClass || (selectedIncident.alertStatus ? 'CRITICAL' : 'SUSPICIOUS')}</span> signatures 
                         with <span className="text-primary font-bold">{Math.round((selectedIncident.aiConfidence || 0) * 100)}% confidence</span>. 
                       </p>
                       <div className="p-3 rounded border border-primary/20 bg-primary/5 text-xs">
