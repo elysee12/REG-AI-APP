@@ -230,6 +230,10 @@ export function BranchMapPage() {
                   </div>
                   <h3 className="mt-1 font-semibold">AI Unit Location</h3>
                   <div className="flex flex-col gap-1 mt-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tight">Village/Cell:</span>
+                      <span className="text-[11px] font-bold text-foreground">{displayedSelectedDevice.cell || '---'}</span>
+                    </div>
                     <button 
                       onClick={() => setShowCoords(!showCoords)}
                       className="text-xs text-muted-foreground flex items-center gap-1.5 hover:text-primary transition-colors text-left group w-fit"

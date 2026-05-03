@@ -53,6 +53,7 @@ export function DevicesPage() {
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
   const [isDetectionDialogOpen, setIsDetectionDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
 
   useEffect(() => {
@@ -266,6 +267,24 @@ export function DevicesPage() {
     }
   };
 
+  const handleDeleteClick = (device: Device) => {
+    setSelectedDevice(device);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!selectedDevice) return;
+    
+    const success = await removeDevice(selectedDevice.id);
+    if (success) {
+      toast.success("Device removed successfully");
+      setIsDeleteDialogOpen(false);
+      setSelectedDevice(null);
+    } else {
+      toast.error("Failed to remove device. Please ensure no active incidents are linked to it.");
+    }
+  };
+
   return (
     <div className="p-4 md:p-6 space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -396,7 +415,7 @@ export function DevicesPage() {
                           size="sm" 
                           variant="ghost" 
                           className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => removeDevice(d.id)}
+                          onClick={() => handleDeleteClick(d)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -984,6 +1003,35 @@ export function DevicesPage() {
               <Button type="submit" className="w-full">Save Changes</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Confirm Deletion
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to delete the AI unit <span className="font-mono font-bold uppercase text-foreground">{selectedDevice?.id}</span>?
+            </p>
+            <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-[11px] text-destructive font-medium leading-relaxed">
+              <strong>Warning:</strong> This action is permanent and cannot be undone. All historical monitoring data linked specifically to this serial number will be archived.
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="ghost" onClick={() => setIsDeleteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmDelete} className="gap-2">
+              <Trash2 className="h-4 w-4" />
+              Delete AI Unit
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

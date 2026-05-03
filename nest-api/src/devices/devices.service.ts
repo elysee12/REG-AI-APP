@@ -35,9 +35,19 @@ export class DevicesService {
     });
   }
 
-  remove(id: string) {
-    return this.prisma.device.delete({
-      where: { id },
+  async remove(id: string) {
+    // We need to handle related incidents first due to foreign key constraints
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Delete all incidents associated with this device
+      await tx.incident.deleteMany({
+        where: { deviceId: id },
+      });
+
+      // 2. Delete the device itself
+      // Many-to-many relations (SecurityContacts) are handled automatically by Prisma
+      return tx.device.delete({
+        where: { id },
+      });
     });
   }
 

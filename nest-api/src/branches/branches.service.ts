@@ -40,9 +40,44 @@ export class BranchesService {
     });
   }
 
-  remove(id: number) {
-    return this.prisma.branch.delete({
-      where: { id },
+  async remove(id: number) {
+    // We need to handle all related entities due to foreign key constraints
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Handle Devices and their Incidents
+      const branchDevices = await tx.device.findMany({
+        where: { branchId: id },
+        select: { id: true },
+      });
+      
+      const deviceIds = branchDevices.map(d => d.id);
+      
+      if (deviceIds.length > 0) {
+        // Delete incidents for all devices in this branch
+        await tx.incident.deleteMany({
+          where: { deviceId: { in: deviceIds } },
+        });
+        
+        // Delete the devices themselves
+        await tx.device.deleteMany({
+          where: { branchId: id },
+        });
+      }
+
+      // 2. Delete Security Contacts
+      await tx.securityContact.deleteMany({
+        where: { branchId: id },
+      });
+
+      // 3. Delete Users associated with this branch
+      // (Alternatively, set branchId to null if you want to keep them, but usually they are branch-specific)
+      await tx.user.deleteMany({
+        where: { branchId: id },
+      });
+
+      // 4. Finally, delete the branch
+      return tx.branch.delete({
+        where: { id },
+      });
     });
   }
 }

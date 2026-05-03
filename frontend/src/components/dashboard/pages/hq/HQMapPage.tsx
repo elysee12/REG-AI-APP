@@ -282,6 +282,10 @@ export function HQMapPage() {
                 </div>
                 <DialogTitle className="text-2xl font-bold">{selectedDevice?.name}</DialogTitle>
                 <div className="flex flex-col gap-1 mt-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tight">Village/Cell:</span>
+                    <span className="text-[11px] font-bold text-foreground">{selectedDevice?.cell || '---'}</span>
+                  </div>
                   <button 
                     onClick={() => setShowCoords(!showCoords)}
                     className="text-sm text-muted-foreground flex items-center gap-1.5 hover:text-primary transition-colors text-left group w-fit"

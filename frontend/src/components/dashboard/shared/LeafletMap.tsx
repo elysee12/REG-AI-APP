@@ -119,9 +119,27 @@ export default function LeafletMap({
                       {item.status || 'Online'}
                     </span>
                   </div>
-                  <div className="flex justify-between items-start gap-2">
-                    <span className="text-muted-foreground font-medium shrink-0">Location</span>
-                    <span className="text-right line-clamp-2">{item.location.address}</span>
+                  
+                  {/* Enhanced Location Details */}
+                  <div className="pt-2 border-t border-border mt-2 space-y-1.5">
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="text-muted-foreground font-medium shrink-0">Village/Cell</span>
+                      <span className="text-right font-semibold">{item.cell || '---'}</span>
+                    </div>
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="text-muted-foreground font-medium shrink-0">Sector/District</span>
+                      <span className="text-right">{item.sector ? `${item.sector}, ` : ''}{item.district || '---'}</span>
+                    </div>
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="text-muted-foreground font-medium shrink-0">Address</span>
+                      <span className="text-right line-clamp-2">{item.location.address}</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-1">
+                      <span className="text-muted-foreground font-medium">Coordinates</span>
+                      <span className="text-right font-mono text-[9px] bg-secondary px-1.5 py-0.5 rounded text-primary font-bold">
+                        {item.location.lat.toFixed(6)}, {item.location.lng.toFixed(6)}
+                      </span>
+                    </div>
                   </div>
                 </div>
 

@@ -48,7 +48,9 @@ export function BranchSecurityContactsPage() {
   const rowsPerPage = 5;
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<any>(null);
+  const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -179,14 +181,21 @@ export function BranchSecurityContactsPage() {
     setIsLoading(false);
   };
 
-  const handleDelete = async (id: string) => {
-    if (confirm("Are you sure you want to delete this security contact?")) {
-      const success = await deleteSecurityContact(id);
-      if (success) {
-        toast.success("Security contact deleted");
-      } else {
-        toast.error("Failed to delete security contact");
-      }
+  const handleDeleteClick = (id: string) => {
+    setSelectedContactId(id);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!selectedContactId) return;
+    
+    const success = await deleteSecurityContact(selectedContactId);
+    if (success) {
+      toast.success("Security contact deleted");
+      setIsDeleteDialogOpen(false);
+      setSelectedContactId(null);
+    } else {
+      toast.error("Failed to delete security contact");
     }
   };
 
@@ -264,7 +273,7 @@ export function BranchSecurityContactsPage() {
                           <Button variant="ghost" size="icon" onClick={() => handleOpenEdit(contact)}>
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleDelete(contact.id)}>
+                          <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteClick(contact.id)}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
@@ -412,6 +421,35 @@ export function BranchSecurityContactsPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive font-bold uppercase tracking-tight">
+              <Trash2 className="h-5 w-5" />
+              Confirm Contact Deletion
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-6 space-y-4">
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Are you sure you want to delete this security contact? This will unlink them from all assigned AI units and monitoring areas.
+            </p>
+            <div className="p-3 bg-destructive/5 border border-destructive/10 rounded-lg text-[11px] text-destructive font-bold uppercase tracking-widest text-center">
+              This action cannot be undone
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="ghost" onClick={() => setIsDeleteDialogOpen(false)} className="font-bold uppercase tracking-widest text-[10px]">
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmDelete} className="font-bold uppercase tracking-widest text-[10px] gap-2">
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete Contact
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
