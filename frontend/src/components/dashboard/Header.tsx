@@ -1,4 +1,4 @@
-import { Bell, Search, ShieldCheck, User, Mail, Building, MapPin, Edit2, Save, X, CheckCircle2, Clock as ClockIcon, KeyRound } from "lucide-react";
+import { Bell, Search, ShieldCheck, User, Mail, Building, MapPin, Edit2, Save, X, CheckCircle2, Clock as ClockIcon, KeyRound, Menu } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { NoSsr } from "../ui/no-ssr";
 import { memo, useEffect, useState, useMemo, useRef } from "react";
@@ -14,7 +14,38 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, Link, useLocation } from "@tanstack/react-router";
+import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { RegLogo } from "@/components/RegLogo";
+import { cn } from "@/lib/utils";
+import {
+  LayoutDashboard,
+  Siren,
+  Map,
+  Camera,
+  ListChecks,
+  Send,
+  FileBarChart,
+  Users,
+  Settings,
+  LogOut,
+  Building2,
+} from "lucide-react";
+
+const menuItems = [
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/dashboard/incidents", label: "Live Incidents", icon: Siren },
+  { to: "/dashboard/map", label: "Monitoring Map", icon: Map },
+  { to: "/dashboard/devices", label: "Devices", icon: Camera },
+  { to: "/dashboard/security-contacts", label: "Security Contacts", icon: ShieldCheck },
+  { to: "/dashboard/queue", label: "Incident Queue", icon: ListChecks },
+  { to: "/dashboard/response", label: "Response Actions", icon: Send },
+  { to: "/dashboard/reports", label: "Reports", icon: FileBarChart },
+  { to: "/dashboard/branches", label: "Branches", icon: Building2, role: "HQ_ADMIN" },
+  { to: "/dashboard/users", label: "Users / Roles", icon: Users, role: "HQ_ADMIN" },
+  { to: "/dashboard/settings", label: "Settings", icon: Settings },
+] as const;
 
 interface HeaderProps {
   title: string;
@@ -52,14 +83,18 @@ const Clock = memo(function Clock() {
 
 export function Header({ title }: HeaderProps) {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const user = useAuthStore((state) => state.user);
+  const logout = useAuthStore((state) => state.logout);
   const setUser = useAuthStore((state) => state.setUser);
   const updateUserInDataStore = useDataStore((state) => state.updateUser);
   const { isAlarmActive, setAlarmActive, lastAlarmStopTimestamp } = useDataStore();
+  const isMobile = useIsMobile();
   
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   // Password change states
   const [isPasswordMode, setIsPasswordMode] = useState(false);
@@ -78,6 +113,17 @@ export function Header({ title }: HeaderProps) {
     email: user?.email || "",
   });
 
+  const filteredItems = menuItems.filter((item) => {
+    const operationalItems = ["/dashboard/incidents", "/dashboard/queue", "/dashboard/response"];
+    if (user?.role === "HQ_ADMIN" && operationalItems.includes(item.to)) {
+      return false;
+    }
+    if ("role" in item && item.role === "HQ_ADMIN") {
+      return user?.role === "HQ_ADMIN";
+    }
+    return true;
+  });
+
   useEffect(() => {
     if (user) {
       setProfileData({
@@ -94,6 +140,11 @@ export function Header({ title }: HeaderProps) {
         .join("")
         .toUpperCase()
     : "??";
+
+  const handleLogout = () => {
+    logout();
+    navigate({ to: "/" });
+  };
 
   const handleSaveProfile = () => {
     if (user) {
@@ -364,9 +415,71 @@ export function Header({ title }: HeaderProps) {
 
   return (
     <header className="h-16 shrink-0 border-b border-border bg-card flex items-center gap-4 px-4 md:px-6">
+      {/* Mobile Menu Trigger */}
+      {isMobile && (
+        <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+          <SheetTrigger asChild>
+            <Button variant="ghost" size="icon" className="md:hidden">
+              <Menu className="h-5 w-5" />
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="p-0 w-72 bg-sidebar border-r-0">
+            <SheetHeader className="p-6 border-b border-sidebar-border bg-gradient-to-br from-primary/10 via-transparent to-transparent text-left relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-1.5 h-full bg-primary shadow-[0_0_20px_rgba(var(--primary),0.6)]" />
+              <SheetTitle className="flex flex-col gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-white/5 border border-white/10">
+                    <RegLogo className="h-8" variant="dark" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-lg font-black tracking-tighter text-white leading-none">GRIDGuard <span className="text-primary italic">AI</span></span>
+                  </div>
+                </div>
+                <p className="text-[11px] font-bold text-white/70 leading-relaxed balance">
+                  AI-based Solutions to Fight Vandalism in Power Infrastructure
+                </p>
+              </SheetTitle>
+            </SheetHeader>
+            <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+              {filteredItems.map((it) => {
+                const active = pathname === it.to || (it.to !== "/dashboard" && pathname.startsWith(it.to));
+                const Icon = it.icon;
+                
+                return (
+                  <Link
+                    key={it.to}
+                    to={it.to}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors",
+                      active
+                        ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                        : "text-sidebar-foreground/75 hover:bg-sidebar-foreground/5 hover:text-sidebar-foreground"
+                    )}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span>{it.label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+            <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-sidebar-border bg-sidebar">
+              <Button 
+                variant="ghost" 
+                className="w-full justify-start gap-3 text-sidebar-foreground/70 hover:text-destructive hover:bg-destructive/10"
+                onClick={handleLogout}
+              >
+                <LogOut className="h-4 w-4" />
+                <span>Sign Out</span>
+              </Button>
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
+
       <div className="min-w-0">
-        <div className="text-xs text-muted-foreground">GRIDGuard AI ▸ Control Center</div>
-        <h1 className="text-base font-semibold text-foreground truncate">{title}</h1>
+        <div className="text-[10px] md:text-xs text-muted-foreground truncate uppercase tracking-widest font-bold">GRIDGuard AI ▸ Control Center</div>
+        <h1 className="text-sm md:text-base font-bold text-foreground truncate">{title}</h1>
       </div>
 
       <div className="hidden md:flex flex-1 max-w-xl mx-auto relative">
@@ -377,37 +490,37 @@ export function Header({ title }: HeaderProps) {
         />
       </div>
 
-      <div className="ml-auto flex items-center gap-3">
+      <div className="ml-auto flex items-center gap-2 md:gap-3">
         <Clock />
 
-        <div className="hidden md:flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-success/10 text-success text-xs font-medium">
-          <span className="h-2 w-2 rounded-full bg-success" />
-          Detection Active
+        <div className="hidden sm:flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-success/10 text-success text-[10px] font-bold uppercase tracking-wider">
+          <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
+          Live
         </div>
 
         <NoSsr>
           {user?.role !== 'HQ_ADMIN' && (
             <button
               onClick={() => setIsNotificationsOpen(true)}
-              className="relative p-2 rounded-md hover:bg-secondary transition-colors"
+              className="relative p-2 rounded-full hover:bg-secondary transition-colors"
             >
               <Bell className="h-5 w-5 text-foreground" />
-              <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-primary blink" />
+              <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-primary blink shadow-[0_0_8px_rgba(var(--primary),0.8)]" />
             </button>
           )}
         </NoSsr>
 
         <div 
           onClick={() => setIsProfileOpen(true)}
-          className="flex items-center gap-2 pl-3 border-l border-border cursor-pointer hover:opacity-80 transition-opacity"
+          className="flex items-center gap-2 pl-2 md:pl-3 border-l border-border cursor-pointer hover:opacity-80 transition-opacity"
         >
-          <div className="h-9 w-9 rounded-full bg-gradient-to-br from-primary to-primary-dark text-primary-foreground flex items-center justify-center text-sm font-semibold shadow-sm">
+          <div className="h-8 w-8 md:h-9 md:w-9 rounded-full bg-gradient-to-br from-primary to-primary-dark text-primary-foreground flex items-center justify-center text-xs md:text-sm font-bold shadow-md border border-white/10">
             {initials}
           </div>
           <div className="hidden lg:block leading-tight text-left">
-            <div className="text-sm font-medium">{user?.fullName || "Guest User"}</div>
-            <div className="text-xs text-muted-foreground flex items-center gap-1">
-              <ShieldCheck className="h-3 w-3" /> {user?.role === "HQ_ADMIN" ? "Administrator" : "Operator"}
+            <div className="text-sm font-bold">{user?.fullName || "Guest User"}</div>
+            <div className="text-[10px] text-muted-foreground flex items-center gap-1 font-medium uppercase tracking-wider">
+              <ShieldCheck className="h-3 w-3 text-primary" /> {user?.role === "HQ_ADMIN" ? "Administrator" : "Operator"}
             </div>
           </div>
         </div>

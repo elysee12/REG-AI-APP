@@ -14,6 +14,7 @@ export function BranchMapPage() {
   const [search, setSearch] = useState("");
   const [isClustered, setIsClustered] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<any>(null);
+  const [showCoords, setShowCoords] = useState(false);
 
   // Default center based on branch name or region
   const branchCenter = useMemo(() => {
@@ -228,7 +229,31 @@ export function BranchMapPage() {
                     )}
                   </div>
                   <h3 className="mt-1 font-semibold">AI Unit Location</h3>
-                  <p className="text-xs text-muted-foreground">{displayedSelectedDevice.location.address}</p>
+                  <div className="flex flex-col gap-1 mt-0.5">
+                    <button 
+                      onClick={() => setShowCoords(!showCoords)}
+                      className="text-xs text-muted-foreground flex items-center gap-1.5 hover:text-primary transition-colors text-left group w-fit"
+                    >
+                      <MapPin className={`h-3 w-3 ${showCoords ? 'text-primary' : ''}`} /> 
+                      <span className="group-hover:underline">{displayedSelectedDevice.location.address}</span>
+                    </button>
+                    {showCoords && (
+                      <div className="flex items-center gap-2 p-1.5 rounded bg-primary/5 border border-primary/10 animate-in fade-in slide-in-from-top-1 duration-200 w-fit">
+                        <div className="text-[9px] font-mono text-primary font-bold">
+                          GPS: {displayedSelectedDevice.location.lat.toFixed(6)}, {displayedSelectedDevice.location.lng.toFixed(6)}
+                        </div>
+                        <button 
+                          className="text-[9px] font-bold text-primary hover:underline ml-1"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(`https://www.google.com/maps/search/?api=1&query=${displayedSelectedDevice.location.lat},${displayedSelectedDevice.location.lng}`, '_blank');
+                          }}
+                        >
+                          OPEN MAP
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   <p className="text-[10px] text-muted-foreground mt-1">Last Data: {displayedSelectedDevice.lastData}</p>
                 </div>
                 <div className="flex gap-2">

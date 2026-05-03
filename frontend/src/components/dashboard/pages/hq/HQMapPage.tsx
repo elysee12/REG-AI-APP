@@ -48,6 +48,7 @@ export function HQMapPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<any>(null);
+  const [showCoords, setShowCoords] = useState(false);
 
   useEffect(() => {
     fetchDevices();
@@ -280,9 +281,33 @@ export function HQMapPage() {
                   <span className="font-mono text-xs text-primary font-bold uppercase tracking-widest bg-primary/10 px-2 py-0.5 rounded">BRANCH-{selectedDevice?.id}</span>
                 </div>
                 <DialogTitle className="text-2xl font-bold">{selectedDevice?.name}</DialogTitle>
-                <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-1">
-                  <MapPin className="h-3.5 w-3.5" /> {selectedDevice?.location?.address}
-                </p>
+                <div className="flex flex-col gap-1 mt-1">
+                  <button 
+                    onClick={() => setShowCoords(!showCoords)}
+                    className="text-sm text-muted-foreground flex items-center gap-1.5 hover:text-primary transition-colors text-left group w-fit"
+                  >
+                    <MapPin className={`h-3.5 w-3.5 ${showCoords ? 'text-primary' : ''}`} /> 
+                    <span className="group-hover:underline">{selectedDevice?.location?.address}</span>
+                  </button>
+                  {showCoords && (
+                    <div className="flex items-center gap-2 p-2 rounded bg-primary/5 border border-primary/10 animate-in fade-in slide-in-from-top-1 duration-200 w-fit">
+                      <div className="text-[10px] font-mono text-primary font-bold">
+                        GPS: {selectedDevice?.location?.lat.toFixed(6)}, {selectedDevice?.location?.lng.toFixed(6)}
+                      </div>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-5 px-1.5 text-[9px] gap-1 hover:bg-primary/20 text-primary"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.open(`https://www.google.com/maps/search/?api=1&query=${selectedDevice?.location?.lat},${selectedDevice?.location?.lng}`, '_blank');
+                        }}
+                      >
+                        <ExternalLink className="h-2.5 w-2.5" /> LIVE MAP
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="text-right">
                 <div className="px-3 py-1 rounded bg-secondary/50 border border-border">

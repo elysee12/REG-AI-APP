@@ -31,9 +31,13 @@ export const Route = createRootRoute({
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "viewport", content: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" },
       { title: "GRIDGuard AI — Infrastructure Protection" },
       { name: "description", content: "Monitors power infrastructure for real-time vandalism and theft, providing operators with instant alerts and response tools." },
+      { name: "theme-color", content: "#EF1C25" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
+      { name: "apple-mobile-web-app-title", content: "GRIDGuard" },
       { name: "author", content: "GRIDGuard AI" },
       { property: "og:title", content: "GRIDGuard AI — Infrastructure Protection" },
       { property: "og:description", content: "Monitors power infrastructure for real-time vandalism and theft, providing operators with instant alerts and response tools." },
@@ -52,6 +56,14 @@ export const Route = createRootRoute({
       },
       {
         rel: "icon",
+        href: "/src/assets/logo.png",
+      },
+      {
+        rel: "manifest",
+        href: "/manifest.json",
+      },
+      {
+        rel: "apple-touch-icon",
         href: "/src/assets/logo.png",
       },
     ],
