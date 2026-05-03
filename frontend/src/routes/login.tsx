@@ -1,5 +1,5 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState, type FormEvent } from "react";
+import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { useState, type FormEvent, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,12 +26,22 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const navigate = useNavigate();
+  const searchParams: any = useSearch({ from: '/login' });
   const login = useAuthStore((state) => state.login);
   const resetAlarmStopTimestamp = useDataStore((state) => state.resetAlarmStopTimestamp);
   
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.error === 'session_expired') {
+      toast.error("Your session has expired. Please sign in again.", {
+        id: "session-expired",
+        duration: 5000,
+      });
+    }
+  }, [searchParams.error]);
 
   const handleSubmit = async (e?: FormEvent) => {
     e?.preventDefault();

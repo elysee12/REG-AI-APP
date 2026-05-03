@@ -14,8 +14,8 @@ import { MailModule } from '../mail/mail.module';
     forwardRef(() => UsersModule),
     PassportModule,
     JwtModule.register({
-      secret: 'SECRET_KEY_REG_2026', // In production, use env variable
-      signOptions: { expiresIn: '1d' },
+      secret: process.env.JWT_SECRET || 'SECRET_KEY_REG_2026',
+      signOptions: { expiresIn: (process.env.JWT_EXPIRES_IN || '1d') as any },
     }),
     MailModule,
   ],

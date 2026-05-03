@@ -110,12 +110,39 @@ interface DataState {
 const API_BASE = 'http://localhost:3000/api';
 
 const getHeaders = () => {
-  const auth = JSON.parse(localStorage.getItem('auth-storage') || '{}');
+  if (typeof window === 'undefined') return { 'Content-Type': 'application/json' };
+  
+  const authStr = localStorage.getItem('auth-storage');
+  const auth = authStr ? JSON.parse(authStr) : {};
   const token = auth.state?.token;
   return {
     'Content-Type': 'application/json',
     ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
   };
+};
+
+const handleUnauthorized = () => {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('auth-storage');
+    window.location.href = '/login?error=session_expired';
+  }
+};
+
+const secureFetch = async (url: string, options: RequestInit = {}) => {
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      ...getHeaders(),
+      ...options.headers,
+    },
+  });
+
+  if (response.status === 401) {
+    handleUnauthorized();
+    throw new Error('Unauthorized');
+  }
+
+  return response;
 };
 
 export const useDataStore = create<DataState>()(
@@ -135,7 +162,7 @@ export const useDataStore = create<DataState>()(
 
       fetchUsers: async () => {
         try {
-          const response = await fetch(`${API_BASE}/users`, { headers: getHeaders() });
+          const response = await secureFetch(`${API_BASE}/users`);
           if (response.ok) {
             const data = await response.json();
             set({ users: data.map((u: any) => ({
@@ -155,9 +182,8 @@ export const useDataStore = create<DataState>()(
           const branch = branches.find(b => b.name === user.branchName);
           const defaultPassword = `${(user.branchName || 'Reg').split(' ')[0]}@2026`;
           
-          const response = await fetch(`${API_BASE}/users`, {
+          const response = await secureFetch(`${API_BASE}/users`, {
             method: 'POST',
-            headers: getHeaders(),
             body: JSON.stringify({
               fullName: user.fullName,
               email: user.email,
@@ -192,9 +218,8 @@ export const useDataStore = create<DataState>()(
             }
           }
 
-          const response = await fetch(`${API_BASE}/users/${id}`, {
+          const response = await secureFetch(`${API_BASE}/users/${id}`, {
             method: 'PATCH',
-            headers: getHeaders(),
             body: JSON.stringify(body),
           });
           if (response.ok) {
@@ -220,9 +245,8 @@ export const useDataStore = create<DataState>()(
             }
           }
 
-          const response = await fetch(`${API_BASE}/users/${id}/secure-update`, {
+          const response = await secureFetch(`${API_BASE}/users/${id}/secure-update`, {
             method: 'PATCH',
-            headers: getHeaders(),
             body: JSON.stringify(body),
           });
           const data = await response.json();
@@ -238,7 +262,7 @@ export const useDataStore = create<DataState>()(
 
       fetchBranches: async () => {
         try {
-          const response = await fetch(`${API_BASE}/branches`, { headers: getHeaders() });
+          const response = await secureFetch(`${API_BASE}/branches`);
           if (response.ok) {
             const data = await response.json();
             set({ branches: data.map((b: any) => ({ ...b, id: String(b.id) })) });
@@ -248,9 +272,8 @@ export const useDataStore = create<DataState>()(
 
       addBranch: async (branch) => {
         try {
-          const response = await fetch(`${API_BASE}/branches`, {
+          const response = await secureFetch(`${API_BASE}/branches`, {
             method: 'POST',
-            headers: getHeaders(),
             body: JSON.stringify(branch),
           });
           if (response.ok) {
@@ -263,9 +286,8 @@ export const useDataStore = create<DataState>()(
 
       updateBranch: async (id, updates) => {
         try {
-          const response = await fetch(`${API_BASE}/branches/${id}`, {
+          const response = await secureFetch(`${API_BASE}/branches/${id}`, {
             method: 'PATCH',
-            headers: getHeaders(),
             body: JSON.stringify(updates),
           });
           if (response.ok) {
@@ -278,9 +300,8 @@ export const useDataStore = create<DataState>()(
 
       deleteBranch: async (id) => {
         try {
-          const response = await fetch(`${API_BASE}/branches/${id}`, {
+          const response = await secureFetch(`${API_BASE}/branches/${id}`, {
             method: 'DELETE',
-            headers: getHeaders(),
           });
           if (response.ok) {
             await get().fetchBranches();
@@ -292,7 +313,7 @@ export const useDataStore = create<DataState>()(
 
       fetchProvinces: async () => {
         try {
-          const response = await fetch(`${API_BASE}/locations/provinces`, { headers: getHeaders() });
+          const response = await secureFetch(`${API_BASE}/locations/provinces`);
           if (response.ok) return await response.json();
           return [];
         } catch (error) { return []; }
@@ -300,7 +321,7 @@ export const useDataStore = create<DataState>()(
 
       fetchDistricts: async (province) => {
         try {
-          const response = await fetch(`${API_BASE}/locations/districts?province=${encodeURIComponent(province)}`, { headers: getHeaders() });
+          const response = await secureFetch(`${API_BASE}/locations/districts?province=${encodeURIComponent(province)}`);
           if (response.ok) return await response.json();
           return [];
         } catch (error) { return []; }
@@ -308,7 +329,7 @@ export const useDataStore = create<DataState>()(
 
       fetchSectors: async (province, district) => {
         try {
-          const response = await fetch(`${API_BASE}/locations/sectors?province=${encodeURIComponent(province)}&district=${encodeURIComponent(district)}`, { headers: getHeaders() });
+          const response = await secureFetch(`${API_BASE}/locations/sectors?province=${encodeURIComponent(province)}&district=${encodeURIComponent(district)}`);
           if (response.ok) return await response.json();
           return [];
         } catch (error) { return []; }
@@ -316,7 +337,7 @@ export const useDataStore = create<DataState>()(
 
       fetchCells: async (province, district, sector) => {
         try {
-          const response = await fetch(`${API_BASE}/locations/cells?province=${encodeURIComponent(province)}&district=${encodeURIComponent(district)}&sector=${encodeURIComponent(sector)}`, { headers: getHeaders() });
+          const response = await secureFetch(`${API_BASE}/locations/cells?province=${encodeURIComponent(province)}&district=${encodeURIComponent(district)}&sector=${encodeURIComponent(sector)}`);
           if (response.ok) return await response.json();
           return [];
         } catch (error) { return []; }
@@ -324,7 +345,7 @@ export const useDataStore = create<DataState>()(
 
       fetchDevices: async () => {
         try {
-          const response = await fetch(`${API_BASE}/devices`, { headers: getHeaders() });
+          const response = await secureFetch(`${API_BASE}/devices`);
           if (response.ok) {
             const data = await response.json();
             set({ devices: data.map((d: any) => ({
@@ -340,9 +361,8 @@ export const useDataStore = create<DataState>()(
 
       addDevice: async (device) => {
         try {
-          const response = await fetch(`${API_BASE}/devices`, {
+          const response = await secureFetch(`${API_BASE}/devices`, {
             method: 'POST',
-            headers: getHeaders(),
             body: JSON.stringify({
               id: device.serialNumber,
               branchId: parseInt(device.branchId),
@@ -366,9 +386,8 @@ export const useDataStore = create<DataState>()(
 
       removeDevice: async (id) => {
         try {
-          const response = await fetch(`${API_BASE}/devices/${id}`, {
+          const response = await secureFetch(`${API_BASE}/devices/${id}`, {
             method: 'DELETE',
-            headers: getHeaders(),
           });
           if (response.ok) {
             await get().fetchDevices();
@@ -387,7 +406,7 @@ export const useDataStore = create<DataState>()(
           
           if (params.toString()) url += `?${params.toString()}`;
           
-          const response = await fetch(url, { headers: getHeaders() });
+          const response = await secureFetch(url);
           if (response.ok) {
             const data = await response.json();
             set({ incidents: data.map((i: any) => ({
@@ -415,7 +434,7 @@ export const useDataStore = create<DataState>()(
 
       fetchAssignedIncidents: async () => {
         try {
-          const response = await fetch(`${API_BASE}/incidents/assigned`, { headers: getHeaders() });
+          const response = await secureFetch(`${API_BASE}/incidents/assigned`);
           if (response.ok) {
             const data = await response.json();
             set({ incidents: data.map((i: any) => ({
@@ -442,7 +461,7 @@ export const useDataStore = create<DataState>()(
 
       fetchIncidentById: async (id) => {
         try {
-          const response = await fetch(`${API_BASE}/incidents/${id}`, { headers: getHeaders() });
+          const response = await secureFetch(`${API_BASE}/incidents/${id}`);
           if (response.ok) {
             const i = await response.json();
             return {
@@ -462,9 +481,8 @@ export const useDataStore = create<DataState>()(
 
       addIncident: async (incident) => {
         try {
-          const response = await fetch(`${API_BASE}/incidents`, {
+          const response = await secureFetch(`${API_BASE}/incidents`, {
             method: 'POST',
-            headers: getHeaders(),
             body: JSON.stringify(incident),
           });
           if (response.ok) {
@@ -477,9 +495,8 @@ export const useDataStore = create<DataState>()(
 
       updateIncidentStatus: async (id, status) => {
         try {
-          const response = await fetch(`${API_BASE}/incidents/${id}/status`, {
+          const response = await secureFetch(`${API_BASE}/incidents/${id}/status`, {
             method: 'PATCH',
-            headers: getHeaders(),
             body: JSON.stringify({ status: status.toUpperCase() }),
           });
           if (response.ok) {
@@ -492,9 +509,8 @@ export const useDataStore = create<DataState>()(
 
       broadcastIncidentAlert: async (id, message) => {
         try {
-          const response = await fetch(`${API_BASE}/incidents/${id}/broadcast`, {
+          const response = await secureFetch(`${API_BASE}/incidents/${id}/broadcast`, {
             method: 'POST',
-            headers: getHeaders(),
             body: JSON.stringify({ message }),
           });
           return response.ok;
@@ -506,9 +522,8 @@ export const useDataStore = create<DataState>()(
 
       broadcastWhatsappAlert: async (id, message) => {
         try {
-          const response = await fetch(`${API_BASE}/incidents/${id}/broadcast-whatsapp`, {
+          const response = await secureFetch(`${API_BASE}/incidents/${id}/broadcast-whatsapp`, {
             method: 'POST',
-            headers: getHeaders(),
             body: JSON.stringify({ message }),
           });
           return response.ok;
@@ -521,7 +536,7 @@ export const useDataStore = create<DataState>()(
       fetchSecurityContacts: async (branchId) => {
         try {
           const url = branchId ? `${API_BASE}/security-contacts?branchId=${branchId}` : `${API_BASE}/security-contacts`;
-          const response = await fetch(url, { headers: getHeaders() });
+          const response = await secureFetch(url);
           if (response.ok) {
             const data = await response.json();
             set({ securityContacts: data });
@@ -531,9 +546,8 @@ export const useDataStore = create<DataState>()(
 
       addSecurityContact: async (contact) => {
         try {
-          const response = await fetch(`${API_BASE}/security-contacts`, {
+          const response = await secureFetch(`${API_BASE}/security-contacts`, {
             method: 'POST',
-            headers: getHeaders(),
             body: JSON.stringify(contact),
           });
           if (response.ok) {
@@ -546,9 +560,8 @@ export const useDataStore = create<DataState>()(
 
       updateSecurityContact: async (id, contact) => {
         try {
-          const response = await fetch(`${API_BASE}/security-contacts/${id}`, {
+          const response = await secureFetch(`${API_BASE}/security-contacts/${id}`, {
             method: 'PATCH',
-            headers: getHeaders(),
             body: JSON.stringify(contact),
           });
           if (response.ok) {
@@ -561,9 +574,8 @@ export const useDataStore = create<DataState>()(
 
       deleteSecurityContact: async (id) => {
         try {
-          const response = await fetch(`${API_BASE}/security-contacts/${id}`, {
+          const response = await secureFetch(`${API_BASE}/security-contacts/${id}`, {
             method: 'DELETE',
-            headers: getHeaders(),
           });
           if (response.ok) {
             await get().fetchSecurityContacts();
@@ -575,9 +587,8 @@ export const useDataStore = create<DataState>()(
 
       linkContactToDevice: async (contactId, deviceId) => {
         try {
-          const response = await fetch(`${API_BASE}/security-contacts/${contactId}/link/${deviceId}`, {
+          const response = await secureFetch(`${API_BASE}/security-contacts/${contactId}/link/${deviceId}`, {
             method: 'POST',
-            headers: getHeaders(),
           });
           if (response.ok) {
             await get().fetchSecurityContacts();
@@ -590,9 +601,8 @@ export const useDataStore = create<DataState>()(
 
       unlinkContactFromDevice: async (contactId, deviceId) => {
         try {
-          const response = await fetch(`${API_BASE}/security-contacts/${contactId}/unlink/${deviceId}`, {
+          const response = await secureFetch(`${API_BASE}/security-contacts/${contactId}/unlink/${deviceId}`, {
             method: 'POST',
-            headers: getHeaders(),
           });
           if (response.ok) {
             await get().fetchSecurityContacts();
@@ -605,9 +615,8 @@ export const useDataStore = create<DataState>()(
 
       requestPasswordReset: async (email) => {
         try {
-          const response = await fetch(`${API_BASE}/auth/request-password-reset`, {
+          const response = await secureFetch(`${API_BASE}/auth/request-password-reset`, {
             method: 'POST',
-            headers: getHeaders(),
             body: JSON.stringify({ email }),
           });
           return await response.json();
@@ -618,9 +627,8 @@ export const useDataStore = create<DataState>()(
 
       resetPassword: async (payload) => {
         try {
-          const response = await fetch(`${API_BASE}/auth/reset-password`, {
+          const response = await secureFetch(`${API_BASE}/auth/reset-password`, {
             method: 'POST',
-            headers: getHeaders(),
             body: JSON.stringify(payload),
           });
           return await response.json();
@@ -634,9 +642,8 @@ export const useDataStore = create<DataState>()(
           const body: any = {};
           if (currentPassword) body.currentPassword = currentPassword;
           
-          const response = await fetch(`${API_BASE}/auth/request-password-change`, {
+          const response = await secureFetch(`${API_BASE}/auth/request-password-change`, {
             method: 'POST',
-            headers: getHeaders(),
             body: JSON.stringify(body),
           });
           return await response.json();
@@ -647,9 +654,8 @@ export const useDataStore = create<DataState>()(
 
       changePasswordWithOtp: async (payload) => {
         try {
-          const response = await fetch(`${API_BASE}/auth/change-password-with-otp`, {
+          const response = await secureFetch(`${API_BASE}/auth/change-password-with-otp`, {
             method: 'POST',
-            headers: getHeaders(),
             body: JSON.stringify(payload),
           });
           return await response.json();

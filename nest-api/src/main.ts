@@ -23,9 +23,17 @@ async function bootstrap() {
   });
 
   app.setGlobalPrefix('api');
-  app.enableCors();
+  
+  // Hardened CORS configuration
+  app.enableCors({
+    origin: process.env.FRONTEND_URL || 'http://localhost:8080',
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    credentials: true,
+  });
+
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,
+    forbidNonWhitelisted: true,
     transform: true,
   }));
 

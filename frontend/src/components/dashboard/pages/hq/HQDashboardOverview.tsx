@@ -1,4 +1,4 @@
-import { Siren, Radio, Camera, CheckCircle2, MapPin, Send, FileText, UserPlus, Building2, ShieldAlert, TrendingUp, BarChart3, Clock, AlertTriangle, Phone, Wallet, Activity } from "lucide-react";
+import { Siren, Radio, Camera, CheckCircle2, MapPin, Send, FileText, UserPlus, Building2, ShieldAlert, TrendingUp, BarChart3, Clock, AlertTriangle, Phone, Wallet, Activity, BrainCircuit, Search, Filter, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDataStore } from "@/lib/data";
 import { useMemo, useEffect, useState } from "react";
@@ -42,6 +42,10 @@ export function HQDashboardOverview() {
   const [branchFilter, setBranchFilter] = useState<string>("all");
   const [isContactDialogOpen, setIsContactDialogOpen] = useState(false);
   const [selectedBranchForContact, setSelectedBranchForContact] = useState<any>(null);
+  
+  // Modal state for branch breakdown
+  const [isBranchBreakdownOpen, setIsBranchBreakdownOpen] = useState(false);
+  const [selectedBranchBreakdown, setSelectedBranchBreakdown] = useState<any>(null);
 
   useEffect(() => {
     fetchDevices();
@@ -65,19 +69,14 @@ export function HQDashboardOverview() {
     return { online, offline, percent };
   }, [devices]);
 
-  // 2. Financial Impact (Estimated Loss in FRW)
-  const financialImpact = useMemo(() => {
-    const rates = {
-      critical: 1500000,
-      high: 500000,
-      medium: 150000,
-      low: 50000
-    };
-    return filteredIncidents.reduce((acc, i) => {
-      const severity = (i.severity || 'medium').toLowerCase() as keyof typeof rates;
-      return acc + (rates[severity] || rates.medium);
-    }, 0);
-  }, [filteredIncidents]);
+  // 2. AI Detection Accuracy (Replacing Financial Impact)
+  const aiAccuracy = useMemo(() => {
+    const relevantIncidents = incidents.filter(i => i.status === "solved" || i.status === "false_alarm");
+    if (relevantIncidents.length === 0) return 98.5; // Benchmark
+    
+    const truePositives = relevantIncidents.filter(i => i.status === "solved").length;
+    return ((truePositives / relevantIncidents.length) * 100).toFixed(1);
+  }, [incidents]);
 
   // 3. Resolution Rate
   const resolutionStats = useMemo(() => {
@@ -88,32 +87,42 @@ export function HQDashboardOverview() {
     return { resolved, rate };
   }, [filteredIncidents]);
 
-  // 4. Branch Performance Ranking
-  const branchPerformance = useMemo(() => {
+  // 4. Branch Performance Ranking & Regional Hotspots
+  const branchStats = useMemo(() => {
     return branches.map(b => {
       const bIncidents = incidents.filter(i => String(i.branchId) === String(b.id));
-      const bResolved = bIncidents.filter(i => i.status === "solved").length;
-      const resRate = bIncidents.length > 0 ? (bResolved / bIncidents.length * 100) : 100;
+      const resolved = bIncidents.filter(i => i.status === "solved").length;
+      const active = bIncidents.filter(i => i.status === "active").length;
+      const pending = bIncidents.filter(i => i.status === "pending").length;
+      const falseAlarm = bIncidents.filter(i => i.status === "false_alarm").length;
+      
+      const resRate = bIncidents.length > 0 ? (resolved / bIncidents.length * 100) : 100;
+      
       return {
         id: b.id,
         name: b.name,
-        incidents: bIncidents.length,
+        region: b.region,
+        total: bIncidents.length,
+        resolved,
+        active,
+        pending,
+        falseAlarm,
         resRate: resRate.toFixed(1),
-        manager: "Manager " + b.name.split(' ')[0] // Mock manager name
+        manager: "Manager " + b.name.split(' ')[0]
       };
-    }).sort((a, b) => b.incidents - a.incidents).slice(0, 5);
+    }).sort((a, b) => b.total - a.total);
   }, [branches, incidents]);
 
-  // 5. Incident Heatmap (by Province)
-  const provinceStats = useMemo(() => {
-    const provinces = ["Kigali", "Northern", "Southern", "Eastern", "Western"];
-    return provinces.map(p => ({
-      name: p,
-      value: incidents.filter(i => {
+  // 5. Regional Summary for the Sidebar
+  const regionSummary = useMemo(() => {
+    const regions = ["Kigali", "Northern", "Southern", "Eastern", "Western"];
+    return regions.map(r => ({
+      name: r,
+      count: incidents.filter(i => {
         const branch = branches.find(b => String(b.id) === String(i.branchId));
-        return branch?.region === p;
+        return branch?.region === r;
       }).length
-    })).sort((a, b) => b.value - a.value);
+    })).sort((a, b) => b.count - a.count);
   }, [incidents, branches]);
 
   // 6. High Severity Queue (HQ only sees High/Critical)
@@ -196,11 +205,11 @@ export function HQDashboardOverview() {
           tone="critical" 
         />
         <Kpi 
-          icon={Wallet} 
-          label="Estimated Damage Cost" 
-          value={`${financialImpact.toLocaleString()} FRW`} 
-          trend="Projected Impact" 
-          tone="critical" 
+          icon={BrainCircuit} 
+          label="AI Detection Accuracy" 
+          value={`${aiAccuracy}%`} 
+          trend="System Reliability" 
+          tone="success" 
         />
         <Kpi 
           icon={TrendingUp} 
@@ -242,23 +251,23 @@ export function HQDashboardOverview() {
           </div>
         </div>
 
-        {/* Incident Heatmap (Mini) */}
+        {/* Regional Hotspots (Sidebar) */}
         <div className="bg-card border border-border rounded-xl shadow-card p-6 flex flex-col">
           <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
             <MapPin className="h-5 w-5 text-primary" />
             Regional Hotspots
           </h2>
           <div className="flex-1 space-y-4">
-            {provinceStats.map((p, idx) => (
-              <div key={p.name} className="space-y-1.5">
+            {regionSummary.map((r, idx) => (
+              <div key={r.name} className="space-y-1.5">
                 <div className="flex justify-between text-xs">
-                  <span className="font-medium">{p.name} Province</span>
-                  <span className="text-primary font-bold">{p.value} Incidents</span>
+                  <span className="font-medium">{r.name} Province</span>
+                  <span className="text-primary font-bold">{r.count} Incidents</span>
                 </div>
                 <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
                   <div 
                     className={`h-full rounded-full ${idx === 0 ? 'bg-primary' : 'bg-primary/60'}`} 
-                    style={{ width: `${(p.value / (provinceStats[0].value || 1)) * 100}%` }}
+                    style={{ width: `${(r.count / (regionSummary[0].count || 1)) * 100}%` }}
                   />
                 </div>
               </div>
@@ -271,7 +280,7 @@ export function HQDashboardOverview() {
           </div>
         </div>
 
-        {/* Branch Performance Ranking */}
+        {/* Branch Performance & Breakdown Table */}
         <div className="bg-card border border-border rounded-xl shadow-card overflow-hidden">
           <div className="p-4 border-b border-border flex items-center justify-between">
             <h2 className="font-bold flex items-center gap-2">
@@ -290,10 +299,18 @@ export function HQDashboardOverview() {
                 </tr>
               </thead>
               <tbody>
-                {branchPerformance.map((b) => (
+                {branchStats.slice(0, 10).map((b) => (
                   <tr key={b.id} className="border-t border-border hover:bg-secondary/40 transition-colors">
-                    <td className="px-4 py-3 font-medium">{b.name}</td>
-                    <td className="px-4 py-3 text-center font-bold text-primary">{b.incidents}</td>
+                    <td 
+                      className="px-4 py-3 font-medium cursor-pointer hover:text-primary transition-colors"
+                      onClick={() => {
+                        setSelectedBranchBreakdown(b);
+                        setIsBranchBreakdownOpen(true);
+                      }}
+                    >
+                      {b.name}
+                    </td>
+                    <td className="px-4 py-3 text-center font-bold text-primary">{b.total}</td>
                     <td className="px-4 py-3 text-center">
                       <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${Number(b.resRate) > 80 ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
                         {b.resRate}%
@@ -401,6 +418,92 @@ export function HQDashboardOverview() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Branch Breakdown Modal */}
+      <Dialog open={isBranchBreakdownOpen} onOpenChange={setIsBranchBreakdownOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-primary" />
+              {selectedBranchBreakdown?.name} — Strategic Breakdown
+            </DialogTitle>
+            <DialogDescription>
+              Detailed incident distribution and operational efficiency for {selectedBranchBreakdown?.region} Province.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid grid-cols-2 gap-4 py-6">
+            <BreakdownCard 
+              label="Total RESOLVED" 
+              value={selectedBranchBreakdown?.resolved} 
+              icon={CheckCircle2} 
+              tone="success" 
+            />
+            <BreakdownCard 
+              label="Active Threats" 
+              value={selectedBranchBreakdown?.active} 
+              icon={ShieldAlert} 
+              tone="critical" 
+            />
+            <BreakdownCard 
+              label="In Progress" 
+              value={selectedBranchBreakdown?.pending} 
+              icon={History} 
+              tone="warning" 
+            />
+            <BreakdownCard 
+              label="False Alarms" 
+              value={selectedBranchBreakdown?.falseAlarm} 
+              icon={Search} 
+              tone="default" 
+            />
+          </div>
+
+          <div className="p-4 rounded-xl bg-secondary/20 border border-border">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Operational Efficiency</span>
+              <span className="text-sm font-bold text-primary">{selectedBranchBreakdown?.resRate}%</span>
+            </div>
+            <div className="h-2 w-full bg-background rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-primary transition-all duration-500" 
+                style={{ width: `${selectedBranchBreakdown?.resRate}%` }}
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" className="flex-1 gap-2" onClick={() => {
+              setBranchFilter(selectedBranchBreakdown?.id);
+              setIsBranchBreakdownOpen(false);
+            }}>
+              <Filter className="h-4 w-4" /> Filter Dashboard
+            </Button>
+            <Button className="flex-1 gap-2" onClick={() => handleContactBranch(selectedBranchBreakdown)}>
+              <Phone className="h-4 w-4" /> Contact Manager
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function BreakdownCard({ label, value, icon: Icon, tone = "default" }: { label: string, value: number, icon: any, tone?: string }) {
+  const tones: Record<string, string> = {
+    success: "bg-success/10 text-success border-success/20",
+    critical: "bg-critical/10 text-critical border-critical/20",
+    warning: "bg-warning/10 text-warning border-warning/20",
+    default: "bg-secondary/40 text-muted-foreground border-border"
+  };
+
+  return (
+    <div className={`p-4 rounded-xl border ${tones[tone]} flex flex-col items-center justify-center text-center gap-2`}>
+      <Icon className="h-5 w-5 opacity-70" />
+      <div>
+        <div className="text-2xl font-black tabular-nums leading-none">{value || 0}</div>
+        <div className="text-[10px] font-bold uppercase tracking-tighter mt-1 opacity-70">{label}</div>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,7 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import { Toaster } from "sonner";
+import { useEffect } from "react";
+import { useAuthStore } from "@/lib/auth";
 
 import appCss from "../styles.css?url";
 
@@ -74,6 +76,39 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 function RootComponent() {
+  const { token, logout, updateActivity, lastActivity } = useAuthStore();
+
+  useEffect(() => {
+    if (!token) return;
+
+    // Session Timeout Logic (30 minutes)
+    const TIMEOUT = 30 * 60 * 1000; 
+    
+    const checkSession = () => {
+      const now = Date.now();
+      if (now - lastActivity > TIMEOUT) {
+        logout();
+      }
+    };
+
+    const interval = setInterval(checkSession, 60000); // Check every minute
+
+    const handleActivity = () => updateActivity();
+
+    window.addEventListener("mousemove", handleActivity);
+    window.addEventListener("keydown", handleActivity);
+    window.addEventListener("click", handleActivity);
+    window.addEventListener("scroll", handleActivity);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("mousemove", handleActivity);
+      window.removeEventListener("keydown", handleActivity);
+      window.removeEventListener("click", handleActivity);
+      window.removeEventListener("scroll", handleActivity);
+    };
+  }, [token, lastActivity, logout, updateActivity]);
+
   return (
     <>
       <Outlet />
