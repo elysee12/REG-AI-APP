@@ -6,7 +6,7 @@ export class MailService {
   private transporter: nodemailer.Transporter;
 
   constructor() {
-    const port = parseInt(process.env.EMAIL_PORT || '587');
+    const port = parseInt(process.env.EMAIL_PORT || '465');
     this.transporter = nodemailer.createTransport({
       host: process.env.EMAIL_HOST || 'smtp.gmail.com',
       port: port,
@@ -14,11 +14,10 @@ export class MailService {
       auth: {
         user: process.env.SMTP_USER || '',
         pass: process.env.SMTP_PASS || '',
-        
       },
-      connectionTimeout: 20000,
-      greetingTimeout: 20000,
-      socketTimeout: 20000,
+      connectionTimeout: 10000, // 10 seconds
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
       tls: {
         rejectUnauthorized: false,
         minVersion: 'TLSv1.2',
