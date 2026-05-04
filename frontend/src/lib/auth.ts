@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { API_BASE } from './config';
 
 export type Role = 'HQ_ADMIN' | 'BRANCH_USER';
 
@@ -34,7 +35,7 @@ export const useAuthStore = create<AuthState>()(
       lastActivity: Date.now(),
       login: async (email, password) => {
         try {
-          const response = await fetch('http://localhost:3000/api/auth/login', {
+          const response = await fetch(`${API_BASE}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password }),

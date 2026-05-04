@@ -19,6 +19,7 @@ import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/co
 import { useIsMobile } from "@/hooks/use-mobile";
 import { RegLogo } from "@/components/RegLogo";
 import { cn } from "@/lib/utils";
+import { API_BASE } from "@/lib/config";
 import {
   LayoutDashboard,
   Siren,
@@ -166,7 +167,7 @@ export function Header({ title }: HeaderProps) {
     }
     setIsLoading(true);
     try {
-      const response = await fetch("http://localhost:3000/api/auth/request-password-change", {
+      const response = await fetch(`${API_BASE}/auth/request-password-change`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -208,15 +209,13 @@ export function Header({ title }: HeaderProps) {
 
     setIsLoading(true);
     try {
-      const response = await fetch("http://localhost:3000/api/auth/verify-change-otp", {
+      const response = await fetch(`${API_BASE}/auth/verify-change-otp`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${useAuthStore.getState().token}`,
         },
-        body: JSON.stringify({
-          otp,
-        }),
+        body: JSON.stringify({ otp }),
       });
 
       const data = await response.json();
@@ -247,16 +246,13 @@ export function Header({ title }: HeaderProps) {
 
     setIsLoading(true);
     try {
-      const response = await fetch("http://localhost:3000/api/auth/change-password-with-otp", {
+      const response = await fetch(`${API_BASE}/auth/change-password-with-otp`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${useAuthStore.getState().token}`,
         },
-        body: JSON.stringify({
-          newPassword,
-          otp,
-        }),
+        body: JSON.stringify({ currentPassword, otp, newPassword }),
       });
 
       const data = await response.json();

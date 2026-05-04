@@ -4,6 +4,7 @@ import { MessageSquare, Phone, Bell, AlertCircle, Mail, MapPin, Camera, ShieldCh
 import { useSearch } from "@tanstack/react-router";
 import { useDataStore } from "@/lib/data";
 import { useAuthStore } from "@/lib/auth";
+import { BASE_URL } from "@/lib/config";
 import { useEffect, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
@@ -372,7 +373,7 @@ https://www.google.com/maps?q=${data.device?.lat || '0'},${data.device?.lng || '
             {incident.videoPath ? (
               <div className="relative group rounded-lg overflow-hidden border border-border">
                 <video
-                  src={`http://localhost:3000${incident.videoPath}`}
+                  src={`${BASE_URL}${incident.videoPath}`}
                   className="w-full h-40 object-cover"
                   controls
                   autoPlay

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { User } from './auth';
 import { getDistrictCenter } from './locations';
+import { API_BASE } from './config';
 
 export interface Branch {
   id: string;
@@ -119,8 +120,6 @@ interface DataState {
   stopAlarm: () => void;
   resetAlarmStopTimestamp: () => void;
 }
-
-const API_BASE = 'http://localhost:3000/api';
 
 const getHeaders = () => {
   if (typeof window === 'undefined') return { 'Content-Type': 'application/json' };

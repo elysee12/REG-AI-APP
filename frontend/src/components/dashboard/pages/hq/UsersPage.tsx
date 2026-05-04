@@ -21,10 +21,11 @@ import {
 import { toast } from "sonner";
 import { useDataStore } from "@/lib/data";
 import { useAuthStore } from "@/lib/auth";
+import { API_BASE } from "@/lib/config";
 import { User, Role, Mail, Eye, EyeOff, ShieldCheck, KeyRound } from "lucide-react";
 import { Pagination } from "../../shared/DashboardComponents";
 
-const API_BASE = "http://localhost:3000/api";
+// Remove the local API_BASE constant as it's now imported from config
 
 const formatTime = (seconds: number) => {
   const mins = Math.floor(seconds / 60);
