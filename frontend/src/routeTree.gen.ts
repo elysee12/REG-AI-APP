@@ -14,6 +14,7 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard.index'
 import { Route as DashboardUsersRouteImport } from './routes/dashboard.users'
+import { Route as DashboardTechniciansRouteImport } from './routes/dashboard.technicians'
 import { Route as DashboardSettingsRouteImport } from './routes/dashboard.settings'
 import { Route as DashboardSecurityContactsRouteImport } from './routes/dashboard.security-contacts'
 import { Route as DashboardResponseRouteImport } from './routes/dashboard.response'
@@ -47,6 +48,11 @@ const DashboardIndexRoute = DashboardIndexRouteImport.update({
 const DashboardUsersRoute = DashboardUsersRouteImport.update({
   id: '/users',
   path: '/users',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardTechniciansRoute = DashboardTechniciansRouteImport.update({
+  id: '/technicians',
+  path: '/technicians',
   getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardSettingsRoute = DashboardSettingsRouteImport.update({
@@ -109,6 +115,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/response': typeof DashboardResponseRoute
   '/dashboard/security-contacts': typeof DashboardSecurityContactsRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
+  '/dashboard/technicians': typeof DashboardTechniciansRoute
   '/dashboard/users': typeof DashboardUsersRoute
   '/dashboard/': typeof DashboardIndexRoute
 }
@@ -124,6 +131,7 @@ export interface FileRoutesByTo {
   '/dashboard/response': typeof DashboardResponseRoute
   '/dashboard/security-contacts': typeof DashboardSecurityContactsRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
+  '/dashboard/technicians': typeof DashboardTechniciansRoute
   '/dashboard/users': typeof DashboardUsersRoute
   '/dashboard': typeof DashboardIndexRoute
 }
@@ -141,6 +149,7 @@ export interface FileRoutesById {
   '/dashboard/response': typeof DashboardResponseRoute
   '/dashboard/security-contacts': typeof DashboardSecurityContactsRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
+  '/dashboard/technicians': typeof DashboardTechniciansRoute
   '/dashboard/users': typeof DashboardUsersRoute
   '/dashboard/': typeof DashboardIndexRoute
 }
@@ -159,6 +168,7 @@ export interface FileRouteTypes {
     | '/dashboard/response'
     | '/dashboard/security-contacts'
     | '/dashboard/settings'
+    | '/dashboard/technicians'
     | '/dashboard/users'
     | '/dashboard/'
   fileRoutesByTo: FileRoutesByTo
@@ -174,6 +184,7 @@ export interface FileRouteTypes {
     | '/dashboard/response'
     | '/dashboard/security-contacts'
     | '/dashboard/settings'
+    | '/dashboard/technicians'
     | '/dashboard/users'
     | '/dashboard'
   id:
@@ -190,6 +201,7 @@ export interface FileRouteTypes {
     | '/dashboard/response'
     | '/dashboard/security-contacts'
     | '/dashboard/settings'
+    | '/dashboard/technicians'
     | '/dashboard/users'
     | '/dashboard/'
   fileRoutesById: FileRoutesById
@@ -235,6 +247,13 @@ declare module '@tanstack/react-router' {
       path: '/users'
       fullPath: '/dashboard/users'
       preLoaderRoute: typeof DashboardUsersRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/technicians': {
+      id: '/dashboard/technicians'
+      path: '/technicians'
+      fullPath: '/dashboard/technicians'
+      preLoaderRoute: typeof DashboardTechniciansRouteImport
       parentRoute: typeof DashboardRoute
     }
     '/dashboard/settings': {
@@ -313,6 +332,7 @@ interface DashboardRouteChildren {
   DashboardResponseRoute: typeof DashboardResponseRoute
   DashboardSecurityContactsRoute: typeof DashboardSecurityContactsRoute
   DashboardSettingsRoute: typeof DashboardSettingsRoute
+  DashboardTechniciansRoute: typeof DashboardTechniciansRoute
   DashboardUsersRoute: typeof DashboardUsersRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
 }
@@ -327,6 +347,7 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardResponseRoute: DashboardResponseRoute,
   DashboardSecurityContactsRoute: DashboardSecurityContactsRoute,
   DashboardSettingsRoute: DashboardSettingsRoute,
+  DashboardTechniciansRoute: DashboardTechniciansRoute,
   DashboardUsersRoute: DashboardUsersRoute,
   DashboardIndexRoute: DashboardIndexRoute,
 }

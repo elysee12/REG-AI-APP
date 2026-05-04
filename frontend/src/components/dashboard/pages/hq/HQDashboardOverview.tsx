@@ -1,9 +1,10 @@
-import { Siren, Radio, Camera, CheckCircle2, MapPin, Send, FileText, UserPlus, Building2, ShieldAlert, TrendingUp, BarChart3, Clock, AlertTriangle, Phone, Wallet, Activity, BrainCircuit, Search, Filter, History } from "lucide-react";
+import { Siren, Radio, Camera, CheckCircle2, MapPin, Send, FileText, UserPlus, Building2, ShieldAlert, TrendingUp, BarChart3, Clock, AlertTriangle, Phone, Wallet, Activity, BrainCircuit, Search, Filter, History, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDataStore } from "@/lib/data";
 import { useMemo, useEffect, useState } from "react";
 import { Kpi, SummaryRow, QuickAction, MiniMap, SeverityPill, StatusPill, Pagination } from "../../shared/DashboardComponents";
 import { useNavigate } from "@tanstack/react-router";
+import { cn } from "@/lib/utils";
 import { 
   ResponsiveContainer, 
   AreaChart, 
@@ -38,7 +39,7 @@ import { toast } from "sonner";
 
 export function HQDashboardOverview() {
   const navigate = useNavigate();
-  const { devices, branches, incidents, fetchDevices, fetchBranches, fetchIncidents } = useDataStore();
+  const { devices, branches, incidents, fetchDevices, fetchBranches, fetchIncidents, isAlarmActive, setAlarmActive, stopAlarm } = useDataStore();
   const [branchFilter, setBranchFilter] = useState<string>("all");
   const [isContactDialogOpen, setIsContactDialogOpen] = useState(false);
   const [selectedBranchForContact, setSelectedBranchForContact] = useState<any>(null);
@@ -136,10 +137,18 @@ export function HQDashboardOverview() {
     })).sort((a, b) => b.count - a.count);
   }, [incidents, branches]);
 
-  // 6. High Severity Queue (HQ only sees High/Critical)
+  // 6. Strategic High-Severity Queue (HQ Control Room View)
   const highSeverityQueue = useMemo(() => {
+    const HIGH_PRIORITY_TYPES = ['Climbing', 'Vendor', 'Wire cutting', 'Box opening'];
+    
     return filteredIncidents
-      .filter(i => (i.severity === "critical" || i.severity === "high") && i.status !== "solved")
+      .filter(i => {
+        const isHighSeverity = i.severity === "critical" || i.severity === "high";
+        const isPriorityType = HIGH_PRIORITY_TYPES.some(type => 
+          i.aiClass?.toLowerCase().includes(type.toLowerCase())
+        );
+        return (isHighSeverity || isPriorityType) && i.status !== "solved";
+      })
       .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
   }, [filteredIncidents]);
 
@@ -177,14 +186,46 @@ export function HQDashboardOverview() {
     setIsContactDialogOpen(true);
   };
 
+  const handleToggleAlarm = () => {
+    if (isAlarmActive) {
+      stopAlarm();
+      toast.info("Audible alarm has been manually silenced.");
+    } else {
+      setAlarmActive(true);
+      toast.error("Audible alarm has been manually triggered.");
+    }
+  };
+
   return (
     <div className="p-4 md:p-6 space-y-6 bg-secondary/10 min-h-screen">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">National Strategic Command</h1>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <Radio className="h-6 w-6 text-primary animate-pulse" />
+            National Strategic Command & Control Room
+          </h1>
           <p className="text-muted-foreground">Strategic infrastructure security and national performance analytics.</p>
         </div>
         <div className="flex items-center gap-3">
+          <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-success/10 border border-success/20">
+            <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-success">Live Control Room Active</span>
+          </div>
+
+          {/* Alarm Control Button */}
+          <Button 
+            variant={isAlarmActive ? "destructive" : "outline"}
+            size="sm" 
+            className={cn(
+              "gap-2 shadow-card transition-all duration-300",
+              isAlarmActive && "animate-pulse"
+            )}
+            onClick={handleToggleAlarm}
+          >
+            {isAlarmActive ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+            {isAlarmActive ? "Stop Alarm" : "Test Alarm"}
+          </Button>
+
           <Select value={branchFilter} onValueChange={setBranchFilter}>
             <SelectTrigger className="w-[200px] bg-card border-border">
               <Building2 className="h-4 w-4 mr-2 text-primary" />
@@ -355,19 +396,24 @@ export function HQDashboardOverview() {
           />
         </div>
 
-        {/* Strategic High-Severity Queue */}
+        {/* Strategic High-Severity Queue (Control Room View) */}
         <div className="xl:col-span-2 bg-card border border-border rounded-xl shadow-card overflow-hidden">
           <div className="p-4 border-b border-border flex items-center justify-between">
             <div>
               <h2 className="font-bold flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-primary" />
-                Executive Incident Watch
+                <Siren className="h-5 w-5 text-primary animate-pulse" />
+                Control Room Live Feed
               </h2>
-              <p className="text-[10px] text-muted-foreground">High-Severity items requiring strategic oversight</p>
+              <p className="text-[10px] text-muted-foreground">High-Priority threats requiring immediate response across all regions</p>
             </div>
-            <Button variant="ghost" size="sm" className="text-xs text-primary" onClick={() => navigate({ to: '/dashboard/map' })}>
-              View Map
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" className="text-xs text-primary" onClick={() => navigate({ to: '/dashboard/incidents' })}>
+                Go to Control Room
+              </Button>
+              <Button variant="ghost" size="sm" className="text-xs text-primary" onClick={() => navigate({ to: '/dashboard/map' })}>
+                View Map
+              </Button>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

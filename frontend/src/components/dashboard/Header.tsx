@@ -115,10 +115,6 @@ export function Header({ title }: HeaderProps) {
   });
 
   const filteredItems = menuItems.filter((item) => {
-    const operationalItems = ["/dashboard/incidents", "/dashboard/queue", "/dashboard/response"];
-    if (user?.role === "HQ_ADMIN" && operationalItems.includes(item.to)) {
-      return false;
-    }
     if ("role" in item && item.role === "HQ_ADMIN") {
       return user?.role === "HQ_ADMIN";
     }
@@ -336,7 +332,10 @@ export function Header({ title }: HeaderProps) {
   }, [user, securityContacts]);
 
   const isIncidentAssignedOrBranch = (incident: any) => {
-    if (!user || user.role === 'HQ_ADMIN') return false;
+    if (!user) return false;
+    // HQ Admin has full visibility of all incidents
+    if (user.role === 'HQ_ADMIN') return true;
+    
     if (assignedDeviceIds.length > 0) {
       return assignedDeviceIds.includes(incident.deviceId);
     }
@@ -346,30 +345,47 @@ export function Header({ title }: HeaderProps) {
     return false;
   };
 
-  // Handle Alarm sound for AI Detections (Branch Users Only - Assigned Devices or Branch)
+  // Handle Alarm sound for AI Detections (Control Room Alarm for HQ)
   useEffect(() => {
-    if (!user || user.role === 'HQ_ADMIN' || !incidents) return;
+    if (!user || !incidents) return;
+
+    const HIGH_PRIORITY_TYPES = ['Climbing', 'Vendor', 'Wire cutting', 'Box opening'];
 
     const hasActiveThreat = incidents.some(i => {
       const isAlert = i.alertStatus === true;
-      const isAssignedOrBranch = isIncidentAssignedOrBranch(i);
       const isActiveIncident = i.status === 'active' || i.status === 'pending';
       const isNewerThanStop = new Date(i.time).getTime() > lastAlarmStopTimestamp;
+      
+      // HQ Control Room Alarm: Alarms for high-priority types or any critical alert across ALL devices
+      if (user.role === 'HQ_ADMIN') {
+        const isHighPriority = HIGH_PRIORITY_TYPES.some(type => 
+          i.aiClass?.toLowerCase().includes(type.toLowerCase())
+        );
+        return (isAlert || isHighPriority) && isActiveIncident && isNewerThanStop;
+      }
+
+      // Branch User Alarm: Only for assigned devices or their branch
+      const isAssignedOrBranch = isIncidentAssignedOrBranch(i);
       return isAlert && isAssignedOrBranch && isActiveIncident && isNewerThanStop;
     });
     
     if (hasActiveThreat && !isAlarmActive) {
-      const latestThreat = incidents.find(i => 
-        i.alertStatus === true && 
-        isIncidentAssignedOrBranch(i) && 
-        (i.status === 'active' || i.status === 'pending') &&
-        new Date(i.time).getTime() > lastAlarmStopTimestamp
-      );
+      const latestThreat = incidents.find(i => {
+        const isActive = i.status === 'active' || i.status === 'pending';
+        const isNewer = new Date(i.time).getTime() > lastAlarmStopTimestamp;
+        if (user.role === 'HQ_ADMIN') {
+          const isHighPriority = HIGH_PRIORITY_TYPES.some(type => 
+            i.aiClass?.toLowerCase().includes(type.toLowerCase())
+          );
+          return (i.alertStatus === true || isHighPriority) && isActive && isNewer;
+        }
+        return i.alertStatus === true && isIncidentAssignedOrBranch(i) && isActive && isNewer;
+      });
       
       setAlarmActive(true);
       toast.error(`${latestThreat?.aiClass || 'CRITICAL'} INCIDENT DETECTED!`, {
         duration: 10000,
-        description: "Priority response required immediately."
+        description: `Control Room Alert: ${latestThreat?.location || 'Unknown location'}`
       });
     } else if (!hasActiveThreat && isAlarmActive) {
       // Auto-deactivate if no more active threats exist
@@ -382,9 +398,9 @@ export function Header({ title }: HeaderProps) {
 
     return incidents
       .filter((incident) => {
-        // HQ Admin: Only show if AI Confidence > 90% (but hidden in UI rendering anyway)
+        // HQ Admin: Show all significant incidents from all devices
         if (user?.role === "HQ_ADMIN") {
-          return incident.aiConfidence >= 0.9;
+          return incident.alertStatus === true || incident.aiConfidence >= 0.8;
         }
         
         return incident.alertStatus === true && isIncidentAssignedOrBranch(incident);

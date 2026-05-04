@@ -1,9 +1,9 @@
-import { Siren, ShieldAlert, Radio, Camera, CheckCircle2, MapPin, Bell, Send, FileText, Volume2, VolumeX, AlertTriangle } from "lucide-react";
+import { Siren, ShieldAlert, Radio, Camera, CheckCircle2, MapPin, Volume2, VolumeX, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/lib/auth";
 import { useDataStore } from "@/lib/data";
 import { useEffect, useMemo, useState } from "react";
-import { Kpi, SeverityPill, StatusPill, SummaryRow, QuickAction, MiniMap, Pagination } from "../../shared/DashboardComponents";
+import { Kpi, SeverityPill, StatusPill, SummaryRow, Pagination } from "../../shared/DashboardComponents";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
@@ -270,14 +270,6 @@ export function BranchDashboardOverview() {
         </div>
 
         <div className="space-y-4">
-          <div className="bg-card border border-border rounded-xl shadow-card overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-border">
-              <h2 className="font-semibold">Monitoring Map</h2>
-              <span className="text-xs text-muted-foreground">Local · Live</span>
-            </div>
-            <MiniMap items={branchDevices} type="device" />
-          </div>
-
           <div className="bg-card border border-border rounded-xl shadow-card p-4">
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-semibold">Alarm Summary</h2>
@@ -291,18 +283,6 @@ export function BranchDashboardOverview() {
               <SummaryRow label="In progress" value={String(branchIncidents.filter(i => i.status === 'pending').length)} tone="warning" />
               <SummaryRow label="Latest site" value={branchIncidents[0]?.location.split(' · ')[0] || "N/A"} />
               <SummaryRow label="Buzzer state" value={stats.active > 0 ? "Active" : "Silent"} tone={stats.active > 0 ? "critical" : "default"} />
-            </div>
-          </div>
-
-          <div className="bg-card border border-border rounded-xl shadow-card p-4">
-            <h2 className="font-semibold mb-3">Quick Actions</h2>
-            <div className="grid grid-cols-2 gap-2">
-              <QuickAction icon={Bell} label="Acknowledge" />
-              <QuickAction icon={Camera} label="Live Camera" />
-              <QuickAction icon={Send} label="Dispatch Team" />
-              <QuickAction icon={FileText} label="Branch Reports" />
-              <QuickAction icon={Volume2} label="Silence Buzzer" />
-              <QuickAction icon={ShieldAlert} label="Escalate" />
             </div>
           </div>
         </div>

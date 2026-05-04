@@ -17,6 +17,7 @@ model Branch {
   devices   Device[]
   users     User[]
   securityContacts SecurityContact[]
+  technicians      Technician[]
 
   @@map("branch")
 }
@@ -69,6 +70,26 @@ model SecurityContact {
 
   @@map("security_contact")
 }
+
+model Technician { 
+   id              String   @id @default(uuid()) 
+   staffId         String   @unique 
+   fullName        String 
+   email           String   @unique 
+   phone           String 
+   profileImage    String?  // Path to the image file 
+   faceToken       Json?    // AI face vector data 
+   branchId        Int 
+   role            String   // e.g., "Senior Technician" 
+   status          String   @default("ACTIVE") 
+   createdAt       DateTime @default(now()) 
+   updatedAt       DateTime @updatedAt
+   
+   branch          Branch   @relation(fields: [branchId], references: [id])
+
+   @@map("technician")
+}
+
 model Incident { 
    id              String   @id @default(uuid()) 
    deviceId        String 

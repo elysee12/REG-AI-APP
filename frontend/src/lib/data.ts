@@ -32,10 +32,24 @@ export interface Device {
   securityContacts?: any[];
 }
 
+export interface Technician {
+  id: string;
+  staffId: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  role: string;
+  branchId: string;
+  branchName?: string;
+  status: string;
+  profileImage?: string;
+}
+
 interface DataState {
   users: User[];
   branches: Branch[];
   devices: Device[];
+  technicians: Technician[];
   isLoading: boolean;
   
   fetchUsers: () => Promise<void>;
@@ -91,6 +105,11 @@ interface DataState {
   }) => Promise<boolean>;
   removeDevice: (id: string) => Promise<boolean>;
 
+  fetchTechnicians: () => Promise<void>;
+  addTechnician: (technician: FormData) => Promise<{ success: boolean; message?: string }>;
+  updateTechnician: (id: string, updates: FormData) => Promise<{ success: boolean; message?: string }>;
+  deleteTechnician: (id: string) => Promise<boolean>;
+
   incidents: any[];
   fetchIncidents: (branchId?: string, deviceId?: string) => Promise<void>;
   fetchAssignedIncidents: () => Promise<void>;
@@ -122,13 +141,12 @@ interface DataState {
 }
 
 const getHeaders = () => {
-  if (typeof window === 'undefined') return { 'Content-Type': 'application/json' };
+  if (typeof window === 'undefined') return {};
   
   const authStr = localStorage.getItem('auth-storage');
   const auth = authStr ? JSON.parse(authStr) : {};
   const token = auth.state?.token;
   return {
-    'Content-Type': 'application/json',
     ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
   };
 };
@@ -141,10 +159,12 @@ const handleUnauthorized = () => {
 };
 
 const secureFetch = async (url: string, options: RequestInit = {}) => {
+  const bodyIsFormData = options.body instanceof FormData;
   const response = await fetch(url, {
     ...options,
     headers: {
       ...getHeaders(),
+      ...(!bodyIsFormData ? { 'Content-Type': 'application/json' } : {}),
       ...options.headers,
     },
   });
@@ -163,6 +183,7 @@ export const useDataStore = create<DataState>()(
       users: [],
       branches: [],
       devices: [],
+      technicians: [],
       incidents: [],
       securityContacts: [],
       isLoading: false,
@@ -622,6 +643,85 @@ export const useDataStore = create<DataState>()(
           });
           if (response.ok) {
             await get().fetchSecurityContacts();
+            return true;
+          }
+          return false;
+        } catch (error) { return false; }
+      },
+
+      fetchTechnicians: async () => {
+        try {
+          const response = await secureFetch(`${API_BASE}/technicians`);
+          if (response.ok) {
+            const data = await response.json();
+            set({ technicians: data.map((t: any) => ({
+              ...t,
+              branchId: String(t.branchId),
+              branchName: t.branch?.name
+            })) });
+          }
+        } catch (error) { console.error('Fetch technicians error:', error); }
+      },
+
+      addTechnician: async (formData) => {
+        try {
+          const response = await secureFetch(`${API_BASE}/technicians`, {
+            method: 'POST',
+            body: formData,
+          });
+          if (response.ok) {
+            await get().fetchTechnicians();
+            return { success: true };
+          }
+
+          let message = 'Could not add technician.';
+          try {
+            const data = await response.json();
+            message = data?.message || JSON.stringify(data);
+          } catch {
+            message = await response.text();
+          }
+          console.error('Add technician error:', message);
+          return { success: false, message };
+        } catch (error) {
+          console.error('Add technician request error:', error);
+          return { success: false, message: 'Network error while adding technician.' };
+        }
+      },
+
+      updateTechnician: async (id, formData) => {
+        try {
+          const response = await secureFetch(`${API_BASE}/technicians/${id}`, {
+            method: 'PATCH',
+            body: formData,
+          });
+          if (response.ok) {
+            await get().fetchTechnicians();
+            return { success: true };
+          }
+
+          let message = 'Could not update technician.';
+          try {
+            const data = await response.json();
+            message = data?.message || JSON.stringify(data);
+          } catch {
+            message = await response.text();
+          }
+          console.error('Update technician error:', message);
+          return { success: false, message };
+        } catch (error) {
+          console.error('Update technician request error:', error);
+          return { success: false, message: 'Network error while updating technician.' };
+        }
+      },
+
+      deleteTechnician: async (id) => {
+        try {
+          const response = await secureFetch(`${API_BASE}/technicians/${id}`, {
+            method: 'DELETE',
+          });
+          if (response.ok) {
+            await get().fetchTechnicians();
             return true;
           }
           return false;

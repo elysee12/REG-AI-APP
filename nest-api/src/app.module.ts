@@ -13,6 +13,7 @@ import { LocationsModule } from './locations/locations.module';
 import { IncidentsModule } from './incidents/incidents.module';
 import { SecurityContactsModule } from './security-contacts/security-contacts.module';
 import { WhatsappModule } from './whatsapp/whatsapp.module';
+import { TechniciansModule } from './technicians/technicians.module';
 
 @Module({
   imports: [
@@ -40,7 +41,8 @@ import { WhatsappModule } from './whatsapp/whatsapp.module';
     LocationsModule, 
     IncidentsModule, 
     SecurityContactsModule, 
-    WhatsappModule
+    WhatsappModule,
+    TechniciansModule
   ],
   controllers: [AppController],
   providers: [AppService],

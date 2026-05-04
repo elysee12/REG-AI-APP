@@ -48,9 +48,10 @@ export function IncidentsPage() {
 
   useEffect(() => {
     fetchDevices();
+    // HQ Users fetch all incidents across all branches for the Control Room view
     const branchId = user?.role === 'BRANCH_USER' && user.branchId ? String(user.branchId) : undefined;
     fetchIncidents(branchId);
-  }, [fetchDevices, fetchIncidents, user]);
+  }, [fetchDevices, fetchIncidents, user?.role, user?.branchId]);
 
   useEffect(() => {
     if (filteredIncidents.length > 0 && !selectedId) {

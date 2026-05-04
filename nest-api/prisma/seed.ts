@@ -4,25 +4,26 @@ import * as bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 async function main() {
-  const password = await bcrypt.hash('GRIDGuard-Admin-2026!', 10);
+  // 1. Generate Hashed Passwords
+  const hqAdminPassword = await bcrypt.hash('GRIDGuard-Admin-2026!', 10);
+  const user1Password = await bcrypt.hash('Telysee2002@', 10);
+  const user2Password = await bcrypt.hash('Telysee2002@', 10);
 
-  // Seed Admin User only
+  // 2. Seed HQ Admin User
   const admin = await prisma.user.upsert({
     where: { email: 'admin@reg.gov.rw' },
     update: {},
     create: {
       email: 'admin@reg.gov.rw',
       fullName: 'HQ Administrator',
-      password: password,
+      password: hqAdminPassword,
       role: Role.HQ_ADMIN,
       status: UserStatus.ENABLED,
-      mustChangePassword: false,
+      mustChangePassword: false, // Set to 0
     },
   });
 
-  console.log({ admin });
-
-  // Seed Branch (required for Device)
+  // 3. Seed Branch
   const branch = await prisma.branch.upsert({
     where: { id: 1 },
     update: {},
@@ -34,7 +35,39 @@ async function main() {
     },
   });
 
-  // Seed Device (required for Incident)
+  // 4. Seed New Branch Users
+  const branchUsers = [
+    {
+      email: 'tuyisengeelysee1@gmail.com',
+      fullName: 'TUYISENGE Elysée',
+      password: user1Password,
+      role: Role.BRANCH_USER,
+      status: UserStatus.ENABLED,
+      mustChangePassword: false, // Set to 0
+      branchId: branch.id,
+    },
+    {
+      email: 'tuyisengeelysee10@gmail.com',
+      fullName: 'Ezi Skz',
+      password: user2Password,
+      role: Role.BRANCH_USER,
+      status: UserStatus.ENABLED,
+      mustChangePassword: false, // Set to 0
+      branchId: branch.id,
+    },
+  ];
+
+  for (const userData of branchUsers) {
+    await prisma.user.upsert({
+      where: { email: userData.email },
+      update: {},
+      create: userData,
+    });
+  }
+
+  console.log('Admin and Branch Users seeded successfully.');
+
+  // 5. Seed Device
   const device = await prisma.device.upsert({
     where: { id: 'DEV-001' },
     update: {},
@@ -54,7 +87,7 @@ async function main() {
     },
   });
 
-  // Seed Incidents matching the Incident schema
+  // 6. Seed Incidents
   const incidents = [
     {
       deviceId: 'DEV-001',
@@ -72,9 +105,9 @@ async function main() {
     },
     {
       deviceId: 'DEV-001',
-      aiClass: IncidentClass.SUSPICIOUS,
-      aiConfidence: 0.78,
-      alertStatus: false,
+      aiClass: IncidentClass.OPENING_BOX,
+      aiConfidence: 0.92,
+      alertStatus: true,
       videoPath: '/uploads/incidents/videos/incident-003.mp4',
     },
   ];
@@ -84,7 +117,8 @@ async function main() {
       data: incidentData,
     });
   }
-  console.log('Incidents seeded successfully.');
+  
+  console.log('Devices and Incidents seeded successfully.');
 }
 
 main()

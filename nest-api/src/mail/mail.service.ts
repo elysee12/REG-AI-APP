@@ -7,17 +7,23 @@ export class MailService {
 
   constructor() {
     const port = parseInt(process.env.EMAIL_PORT || '465');
+    const host = process.env.EMAIL_HOST || 'smtp.gmail.com';
+    
+    console.log(`[Mail Service] Initializing with ${host}:${port} (Secure: ${port === 465})`);
+
     this.transporter = nodemailer.createTransport({
-      host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+      host: host,
       port: port,
       secure: port === 465, // true for 465, false for other ports
       auth: {
         user: process.env.SMTP_USER || '',
         pass: process.env.SMTP_PASS || '',
       },
-      connectionTimeout: 10000, // 10 seconds
-      greetingTimeout: 10000,
-      socketTimeout: 15000,
+      // Cloud environment fixes
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 20000,
+      dnsTimeout: 10000,
       tls: {
         rejectUnauthorized: false,
         minVersion: 'TLSv1.2',
@@ -97,35 +103,29 @@ export class MailService {
   }
 
   async sendPasswordResetEmail(to: string, fullName: string, otp: string): Promise<void> {
+    console.log(`[Mail Service] Attempting to send OTP email to ${to}...`);
     const html = this.getHtmlContent(`
-      <h2 style="color: #1A1A1A; margin: 0 0 24px; font-size: 22px; font-weight: 600;">Password Reset Request</h2>
+      <h2 style="color: #1A1A1A; margin: 0 0 24px; font-size: 22px; font-weight: 600;">Verification Code</h2>
       <p style="color: #444444; margin: 0 0 20px; font-size: 15px; line-height: 1.6;">Dear <strong>${fullName}</strong>,</p>
-      <p style="color: #444444; margin: 0 0 20px; font-size: 15px; line-height: 1.6;">We received a request to reset your account password. Please use the following verification code:</p>
-      <div style="background-color: #1A1A1A; border-radius: 8px; padding: 24px; margin: 24px 0; text-align: center;">
-        <p style="margin: 0 0 8px; color: rgba(255,255,255,0.7); font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Verification Code</p>
-        <p style="margin: 0; color: #EF1C25; font-size: 36px; font-weight: 700; letter-spacing: 8px; font-family: monospace;">${otp}</p>
+      <p style="color: #444444; margin: 0 0 20px; font-size: 15px; line-height: 1.6;">We received a request to access or change your GRIDGuard AI account security settings. Use the code below to verify your identity:</p>
+      <div style="background-color: #f8f8f8; border-radius: 8px; padding: 32px; text-align: center; margin: 24px 0;">
+        <span style="font-family: 'Courier New', Courier, monospace; font-size: 36px; font-weight: 700; color: #EF1C25; letter-spacing: 8px; background: #ffffff; padding: 12px 24px; border: 1px solid #e0e0e0; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">${otp}</span>
+        <p style="color: #888888; margin: 16px 0 0; font-size: 12px;">This code will expire in 10 minutes.</p>
       </div>
-      <div style="background-color: #fff3cd; border-radius: 8px; padding: 16px; margin: 24px 0; border-left: 4px solid #F4A100;">
-        <p style="margin: 0; color: #856404; font-size: 13px; line-height: 1.5;"><strong>Security Notice:</strong> This code will expire in <strong>10 minutes</strong>. If you did not request a password reset, please ignore this email and contact your administrator.</p>
-      </div>
-      <p style="color: #888888; margin: 0; font-size: 13px; line-height: 1.6;">For your security, never share this code with anyone.</p>
+      <p style="color: #444444; margin: 0 0 20px; font-size: 14px; line-height: 1.6;">If you did not request this code, you can safely ignore this email. Someone may have entered your email address by mistake.</p>
     `);
 
     try {
-      console.log(`Attempting to send password reset email to ${to}...`);
-      await this.transporter.sendMail({
+      const result = await this.transporter.sendMail({
         from: `"GRIDGuard AI" <${process.env.SMTP_USER || 'noreply@gridguard.ai'}>`,
         to,
-        subject: 'GRIDGuard AI - Password Reset Verification Code',
+        subject: `${otp} is your GRIDGuard AI verification code`,
         html,
       });
-      console.log(`Password reset email successfully sent to ${to}`);
+      console.log(`[Mail Service] Email sent successfully! MessageId: ${result.messageId}`);
     } catch (error) {
-      console.error(`Failed to send password reset email to ${to}. Error: ${error.message}`);
-      if (error.code === 'ETIMEDOUT') {
-        console.error('Connection timed out. This may be due to network issues or blocked SMTP ports.');
-      }
-      throw error; // Rethrow for reset since it's a critical action
+      console.error(`[Mail Service] CRITICAL ERROR: Failed to send email to ${to}:`, error);
+      throw error; // Re-throw to let the controller handle the 500 error
     }
   }
 

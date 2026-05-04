@@ -26,9 +26,10 @@ export function QueuePage() {
 
   useEffect(() => {
     fetchDevices();
+    // HQ Users fetch all incidents for the global queue
     const branchId = user?.role === 'BRANCH_USER' && user.branchId ? String(user.branchId) : undefined;
     fetchIncidents(branchId);
-  }, [fetchDevices, fetchIncidents, user]);
+  }, [fetchDevices, fetchIncidents, user?.role, user?.branchId]);
 
   const toggleFilter = (filter: string) => {
     setActiveFilters(prev => 
