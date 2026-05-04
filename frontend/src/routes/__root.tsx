@@ -1,9 +1,12 @@
-import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
+import { Outlet, createRootRoute } from "@tanstack/react-router";
 import { Toaster } from "sonner";
 import { useEffect } from "react";
 import { useAuthStore } from "@/lib/auth";
 
-import appCss from "../styles.css?url";
+export const Route = createRootRoute({
+  component: RootComponent,
+  notFoundComponent: NotFoundComponent,
+});
 
 function NotFoundComponent() {
   return (
@@ -15,75 +18,15 @@ function NotFoundComponent() {
           The page you're looking for doesn't exist or has been moved.
         </p>
         <div className="mt-6">
-          <Link
-            to="/"
+          <a
+            href="/"
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             Go home
-          </Link>
+          </a>
         </div>
       </div>
     </div>
-  );
-}
-
-export const Route = createRootRoute({
-  head: () => ({
-    meta: [
-      { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" },
-      { title: "GRIDGuard AI — Infrastructure Protection" },
-      { name: "description", content: "Monitors power infrastructure for real-time vandalism and theft, providing operators with instant alerts and response tools." },
-      { name: "theme-color", content: "#EF1C25" },
-      { name: "apple-mobile-web-app-capable", content: "yes" },
-      { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
-      { name: "apple-mobile-web-app-title", content: "GRIDGuard" },
-      { name: "author", content: "GRIDGuard AI" },
-      { property: "og:title", content: "GRIDGuard AI — Infrastructure Protection" },
-      { property: "og:description", content: "Monitors power infrastructure for real-time vandalism and theft, providing operators with instant alerts and response tools." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@GRIDGuardAI" },
-      { name: "twitter:title", content: "GRIDGuard AI — Infrastructure Protection" },
-      { name: "twitter:description", content: "Monitors power infrastructure for real-time vandalism and theft, providing operators with instant alerts and response tools." },
-      { property: "og:image", content: "/src/assets/logo.png" },
-      { name: "twitter:image", content: "/src/assets/logo.png" },
-    ],
-    links: [
-      {
-        rel: "stylesheet",
-        href: appCss,
-      },
-      {
-        rel: "icon",
-        href: "/src/assets/logo.png",
-      },
-      {
-        rel: "manifest",
-        href: "/manifest.json",
-      },
-      {
-        rel: "apple-touch-icon",
-        href: "/src/assets/logo.png",
-      },
-    ],
-  }),
-  shellComponent: RootShell,
-  component: RootComponent,
-  notFoundComponent: NotFoundComponent,
-});
-
-function RootShell({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="en">
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        {children}
-        <Scripts />
-      </body>
-    </html>
   );
 }
 
