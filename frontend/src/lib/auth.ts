@@ -20,10 +20,12 @@ export interface User {
 interface AuthState {
   user: User | null;
   token: string | null;
+  tempPassword?: string; // Temporarily store password for first-time login UX
   lastActivity: number;
   login: (email: string, pass: string) => Promise<boolean>;
   logout: () => void;
   setUser: (user: User | null) => void;
+  clearTempPassword: () => void;
   updateActivity: () => void;
 }
 
@@ -44,7 +46,12 @@ export const useAuthStore = create<AuthState>()(
           if (!response.ok) return false;
 
           const data = await response.json();
-          set({ user: data.user, token: data.access_token, lastActivity: Date.now() });
+          set({ 
+            user: data.user, 
+            token: data.access_token, 
+            tempPassword: password, // Store password temporarily
+            lastActivity: Date.now() 
+          });
           return true;
         } catch (error) {
           console.error('Login error:', error);
@@ -52,17 +59,23 @@ export const useAuthStore = create<AuthState>()(
         }
       },
       logout: () => {
-        set({ user: null, token: null });
+        set({ user: null, token: null, tempPassword: undefined });
         if (typeof window !== 'undefined') {
           localStorage.removeItem('auth-storage');
           window.location.href = '/login';
         }
       },
       setUser: (user) => set({ user }),
+      clearTempPassword: () => set({ tempPassword: undefined }),
       updateActivity: () => set({ lastActivity: Date.now() }),
     }),
     {
       name: 'auth-storage',
+      partialize: (state) => ({
+        user: state.user,
+        token: state.token,
+        lastActivity: state.lastActivity,
+      }),
     }
   )
 );

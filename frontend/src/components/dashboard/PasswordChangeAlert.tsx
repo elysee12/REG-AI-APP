@@ -17,6 +17,8 @@ import { useDataStore } from "@/lib/data";
 
 export function PasswordChangeAlert() {
   const user = useAuthStore((state) => state.user);
+  const tempPassword = useAuthStore((state) => state.tempPassword);
+  const clearTempPassword = useAuthStore((state) => state.clearTempPassword);
   const setUser = useAuthStore((state) => state.setUser);
   const { requestPasswordChange, changePasswordWithOtp } = useDataStore();
   
@@ -64,7 +66,8 @@ export function PasswordChangeAlert() {
     if (e) e.preventDefault();
     
     setIsLoading(true);
-    const data = await requestPasswordChange("");
+    // Use tempPassword if available (from login screen), otherwise pass empty
+    const data = await requestPasswordChange(tempPassword || "");
     
     if (data.success) {
       toast.success("Verification code sent to your email");
@@ -100,13 +103,15 @@ export function PasswordChangeAlert() {
     setIsLoading(true);
     const data = await changePasswordWithOtp({
       otp,
-      newPassword
+      newPassword,
+      currentPassword: tempPassword // Include current password if we have it
     });
 
     if (data.success) {
       if (user) {
         setUser({ ...user, mustChangePassword: false });
       }
+      clearTempPassword(); // Clear sensitive data after success
       setIsDialogOpen(false);
       toast.success("Password updated successfully! Dashboard access restored.");
       // Reset state
