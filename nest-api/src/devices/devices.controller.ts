@@ -22,6 +22,12 @@ export class DevicesController {
     return this.devicesService.findOne(id);
   }
 
+  @Post('status')
+  updateStatus(@Body() body: any) {
+    const deviceId = body.deviceId;
+    return this.devicesService.updateStatus(deviceId, body);
+  }
+
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateDeviceDto: UpdateDeviceDto) {
     return this.devicesService.update(id, updateDeviceDto);

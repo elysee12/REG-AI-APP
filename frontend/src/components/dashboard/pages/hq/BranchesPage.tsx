@@ -46,8 +46,6 @@ export function BranchesPage() {
     fetchBranches, 
     fetchProvinces, 
     fetchDistricts,
-    fetchSectors,
-    fetchCells
   } = useDataStore();
   const [search, setSearch] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -59,8 +57,6 @@ export function BranchesPage() {
   
   const [provinces, setProvinces] = useState<string[]>([]);
   const [districts, setDistricts] = useState<string[]>([]);
-  const [sectors, setSectors] = useState<string[]>([]);
-  const [cells, setCells] = useState<string[]>([]);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -68,8 +64,6 @@ export function BranchesPage() {
     address: "",
     province: "",
     district: "",
-    sector: "",
-    cell: "",
   });
 
   useEffect(() => {
@@ -80,35 +74,11 @@ export function BranchesPage() {
   useEffect(() => {
     if (formData.province) {
       fetchDistricts(formData.province).then(setDistricts);
-      setFormData(prev => ({ ...prev, district: "", sector: "", cell: "" }));
-      setSectors([]);
-      setCells([]);
+      setFormData(prev => ({ ...prev, district: "" }));
     } else {
       setDistricts([]);
-      setSectors([]);
-      setCells([]);
     }
   }, [formData.province, fetchDistricts]);
-
-  useEffect(() => {
-    if (formData.province && formData.district) {
-      fetchSectors(formData.province, formData.district).then(setSectors);
-      setFormData(prev => ({ ...prev, sector: "", cell: "" }));
-      setCells([]);
-    } else {
-      setSectors([]);
-      setCells([]);
-    }
-  }, [formData.province, formData.district, fetchSectors]);
-
-  useEffect(() => {
-    if (formData.province && formData.district && formData.sector) {
-      fetchCells(formData.province, formData.district, formData.sector).then(setCells);
-      setFormData(prev => ({ ...prev, cell: "" }));
-    } else {
-      setCells([]);
-    }
-  }, [formData.province, formData.district, formData.sector, fetchCells]);
 
   const filteredBranches = branches.filter((b) =>
     b.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -128,7 +98,7 @@ export function BranchesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const address = `${formData.cell}, ${formData.sector}, ${formData.district}`;
+    const address = formData.district;
     const payload = {
       name: formData.name,
       region: formData.province,
@@ -137,7 +107,7 @@ export function BranchesPage() {
     const success = await addBranch(payload);
     if (success) {
       toast.success("Branch created successfully");
-      setFormData({ name: "", region: "", address: "", province: "", district: "", sector: "", cell: "" });
+      setFormData({ name: "", region: "", address: "", province: "", district: "" });
       setIsAddDialogOpen(false);
     } else {
       toast.error("Failed to create branch");
@@ -146,16 +116,12 @@ export function BranchesPage() {
 
   const handleEditClick = (branch: Branch) => {
     setSelectedBranch(branch);
-    // Try to parse the address back into components if possible, or just reset
-    const addressParts = branch.address.split(", ");
     setFormData({
       name: branch.name,
       region: branch.region,
       address: branch.address,
       province: branch.region,
-      district: addressParts[2] || "",
-      sector: addressParts[1] || "",
-      cell: addressParts[0] || "",
+      district: branch.address,
     });
     setIsEditDialogOpen(true);
   };
@@ -163,7 +129,7 @@ export function BranchesPage() {
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedBranch) return;
-    const address = `${formData.cell}, ${formData.sector}, ${formData.district}`;
+    const address = formData.district;
     const payload = {
       name: formData.name,
       region: formData.province,
@@ -174,7 +140,7 @@ export function BranchesPage() {
       toast.success("Branch updated successfully");
       setIsEditDialogOpen(false);
       setSelectedBranch(null);
-      setFormData({ name: "", region: "", address: "", province: "", district: "", sector: "", cell: "" });
+      setFormData({ name: "", region: "", address: "", province: "", district: "" });
     } else {
       toast.error("Failed to update branch");
     }
@@ -329,42 +295,6 @@ export function BranchesPage() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="sector">Sector</Label>
-                <Select
-                  value={formData.sector}
-                  onValueChange={(v) => setFormData({ ...formData, sector: v })}
-                  disabled={!formData.district}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select sector" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sectors.map((s) => (
-                      <SelectItem key={s} value={s}>{s}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="cell">Cell</Label>
-                <Select
-                  value={formData.cell}
-                  onValueChange={(v) => setFormData({ ...formData, cell: v })}
-                  disabled={!formData.sector}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select cell" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {cells.map((c) => (
-                      <SelectItem key={c} value={c}>{c}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
             <DialogFooter>
               <Button type="submit">Create Branch</Button>
             </DialogFooter>
@@ -419,42 +349,6 @@ export function BranchesPage() {
                   <SelectContent>
                     {districts.map((d) => (
                       <SelectItem key={d} value={d}>{d}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="edit-sector">Sector</Label>
-                <Select
-                  value={formData.sector}
-                  onValueChange={(v) => setFormData({ ...formData, sector: v })}
-                  disabled={!formData.district}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select sector" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sectors.map((s) => (
-                      <SelectItem key={s} value={s}>{s}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="edit-cell">Cell</Label>
-                <Select
-                  value={formData.cell}
-                  onValueChange={(v) => setFormData({ ...formData, cell: v })}
-                  disabled={!formData.sector}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select cell" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {cells.map((c) => (
-                      <SelectItem key={c} value={c}>{c}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

@@ -55,5 +55,9 @@ export class CreateDeviceDto {
 
   @IsString()
   @IsOptional()
+  village?: string;
+
+  @IsString()
+  @IsOptional()
   lastData?: string;
 }

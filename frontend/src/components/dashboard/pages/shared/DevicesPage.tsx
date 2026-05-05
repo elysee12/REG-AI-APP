@@ -49,6 +49,7 @@ export function DevicesPage() {
   const [districts, setDistricts] = useState<string[]>([]);
   const [sectors, setSectors] = useState<string[]>([]);
   const [cells, setCells] = useState<string[]>([]);
+  const [villages, setVillages] = useState<string[]>([]);
 
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
   const [isDetectionDialogOpen, setIsDetectionDialogOpen] = useState(false);
@@ -130,6 +131,7 @@ export function DevicesPage() {
     district: "",
     sector: "",
     cell: "",
+    village: "",
   });
 
   useEffect(() => {
@@ -137,10 +139,12 @@ export function DevicesPage() {
       fetchDistricts(formData.province).then(setDistricts);
       setSectors([]);
       setCells([]);
+      setVillages([]);
     } else {
       setDistricts([]);
       setSectors([]);
       setCells([]);
+      setVillages([]);
     }
   }, [formData.province, fetchDistricts]);
 
@@ -148,19 +152,32 @@ export function DevicesPage() {
     if (formData.province && formData.district) {
       fetchSectors(formData.province, formData.district).then(setSectors);
       setCells([]);
+      setVillages([]);
     } else {
       setSectors([]);
       setCells([]);
+      setVillages([]);
     }
   }, [formData.province, formData.district, fetchSectors]);
 
   useEffect(() => {
     if (formData.province && formData.district && formData.sector) {
       fetchCells(formData.province, formData.district, formData.sector).then(setCells);
+      setVillages([]);
     } else {
       setCells([]);
+      setVillages([]);
     }
   }, [formData.province, formData.district, formData.sector, fetchCells]);
+
+  useEffect(() => {
+    if (formData.province && formData.district && formData.sector && formData.cell) {
+      const { fetchVillages } = useDataStore.getState();
+      fetchVillages(formData.province, formData.district, formData.sector, formData.cell).then(setVillages);
+    } else {
+      setVillages([]);
+    }
+  }, [formData.province, formData.district, formData.sector, formData.cell]);
 
   // Filter devices based on user role and search
   const filteredDevices = devices.filter((d) => {
@@ -180,14 +197,24 @@ export function DevicesPage() {
     setCurrentPage(1);
   }, [search]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.branchId) {
+      toast.error("Please select a target branch.");
+      return;
+    }
+
+    if (!formData.province || !formData.district || !formData.sector || !formData.cell || !formData.village) {
+      toast.error("Please complete the full device location.");
+      return;
+    }
+
     const branch = branches.find(b => b.id === formData.branchId);
     if (branch) {
-      const address = `${formData.cell}, ${formData.sector}, ${formData.district}, ${formData.province}`;
+      const address = `${formData.village}, ${formData.cell}, ${formData.sector}, ${formData.district}, ${formData.province}`;
       const districtCoords = getDistrictCenter(formData.district) || getDistrictCenter(formData.province);
       
-      addDevice({
+      const success = await addDevice({
         serialNumber: formData.serialNumber,
         branchId: formData.branchId,
         branchName: branch.name,
@@ -196,20 +223,28 @@ export function DevicesPage() {
         district: formData.district,
         sector: formData.sector,
         cell: formData.cell,
+        village: formData.village,
         address: address,
         lat: districtCoords?.lat || -1.9441,
         lng: districtCoords?.lng || 30.0619
       });
-      setIsDialogOpen(false);
-      setFormData({ 
-        serialNumber: "", 
-        branchId: "", 
-        ipAddress: "",
-        province: "",
-        district: "",
-        sector: "",
-        cell: ""
-      });
+
+      if (success) {
+        toast.success("Device registered successfully");
+        setIsDialogOpen(false);
+        setFormData({ 
+          serialNumber: "", 
+          branchId: "", 
+          ipAddress: "",
+          province: "",
+          district: "",
+          sector: "",
+          cell: "",
+          village: ""
+        });
+      } else {
+        toast.error("Failed to register device. Please check the form and try again.");
+      }
     }
   };
 
@@ -223,6 +258,7 @@ export function DevicesPage() {
       district: device.district || "",
       sector: device.sector || "",
       cell: device.cell || "",
+      village: device.village || "",
     });
     setIsEditDialogOpen(true);
   };
@@ -233,7 +269,7 @@ export function DevicesPage() {
 
     const branch = branches.find(b => b.id === formData.branchId);
     if (branch) {
-      const address = `${formData.cell}, ${formData.sector}, ${formData.district}, ${formData.province}`;
+      const address = `${formData.village}, ${formData.cell}, ${formData.sector}, ${formData.district}, ${formData.province}`;
       const districtCoords = getDistrictCenter(formData.district) || getDistrictCenter(formData.province);
       
       const success = await updateDevice(selectedDevice.id, {
@@ -243,6 +279,7 @@ export function DevicesPage() {
         district: formData.district,
         sector: formData.sector,
         cell: formData.cell,
+        village: formData.village,
         address: address,
         lat: districtCoords?.lat || selectedDevice.location.lat,
         lng: districtCoords?.lng || selectedDevice.location.lng
@@ -259,7 +296,8 @@ export function DevicesPage() {
           province: "",
           district: "",
           sector: "",
-          cell: ""
+          cell: "",
+          village: ""
         });
       } else {
         toast.error("Failed to update device");
@@ -307,17 +345,19 @@ export function DevicesPage() {
       </div>
 
       <div className="bg-card border border-border rounded-xl shadow-card overflow-hidden">
-        <div className="p-4 border-b border-border flex flex-wrap gap-3 items-center">
+        <div className="p-3 md:p-4 border-b border-border flex flex-wrap gap-3 items-center bg-secondary/10">
           <Input
-            placeholder="Search by Serial Number or branch…"
-            className="max-w-xs"
+            placeholder="Search Serial Number..."
+            className="w-full md:max-w-xs h-10 md:h-9 text-sm font-medium"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div className="overflow-x-auto">
+        
+        {/* Desktop Table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="text-xs uppercase text-muted-foreground bg-secondary/40">
+            <thead className="text-[10px] uppercase font-black tracking-widest text-muted-foreground bg-secondary/40">
               <tr>
                 <th className="text-left px-4 py-3 font-medium">Serial Number</th>
                 <th className="text-left px-4 py-3 font-medium">Device Info</th>
@@ -333,13 +373,13 @@ export function DevicesPage() {
                 <tr key={d.id} className="border-t border-border hover:bg-secondary/40 transition-colors">
                   <td className="px-4 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                      <div className="p-2 rounded-lg bg-primary/10 text-primary border border-primary/20">
                         <Camera className="h-4 w-4" />
                       </div>
                       <div className="space-y-0.5">
-                        <div className="font-mono text-sm font-bold uppercase tracking-wider">{d.id}</div>
+                        <div className="font-mono text-sm font-black uppercase tracking-tight">{d.id}</div>
                         {d.ipAddress && (
-                          <div className="text-[10px] text-muted-foreground font-mono bg-secondary/50 px-1.5 py-0.5 rounded border border-border w-fit">
+                          <div className="text-[9px] text-muted-foreground font-mono font-bold bg-secondary/50 px-1.5 py-0.5 rounded border border-border w-fit">
                             IP: {d.ipAddress}
                           </div>
                         )}
@@ -347,43 +387,49 @@ export function DevicesPage() {
                     </div>
                   </td>
                   <td className="px-4 py-4">
-                    <div className="font-medium">{d.name}</div>
-                    <div className="text-[10px] text-muted-foreground">Version 2.4.1-Stable</div>
+                    <div className="font-black text-sm tracking-tight">{d.name}</div>
+                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">v2.4.1-Stable</div>
                   </td>
                   {user?.role === "HQ_ADMIN" && (
                     <td className="px-4 py-4">
-                      <div className="font-medium">{d.branchName}</div>
+                      <div className="font-bold text-xs">{d.branchName}</div>
                     </td>
                   )}
                   <td className="px-4 py-4">
                     <div className="flex flex-wrap gap-1 max-w-[200px]">
                       {d.securityContacts && d.securityContacts.length > 0 ? (
                         d.securityContacts.map((c: any) => (
-                          <div key={c.id} className="bg-primary/5 text-primary border border-primary/20 text-[10px] px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                          <div key={c.id} className="bg-primary/5 text-primary border border-primary/20 text-[9px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
                             <ShieldCheck className="h-2.5 w-2.5" />
                             {c.name}
                           </div>
                         ))
                       ) : (
-                        <div className="text-[10px] text-muted-foreground italic">None linked</div>
+                        <div className="text-[10px] text-muted-foreground italic font-medium opacity-50">None linked</div>
                       )}
                       <Button 
                         variant="ghost" 
                         size="icon" 
-                        className="h-5 w-5 ml-1" 
+                        className="h-6 w-6 ml-1 hover:bg-primary/10 text-primary" 
                         onClick={() => handleOpenLinkDialog(d)}
                       >
-                        <UserPlus className="h-3 w-3" />
+                        <UserPlus className="h-3.5 w-3.5" />
                       </Button>
                     </div>
                   </td>
                   <td className="px-4 py-4 max-w-[250px]">
                     <div className="flex items-start gap-1.5">
-                      <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                      <button 
+                        className="p-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-all shadow-sm"
+                        onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${d.location.lat},${d.location.lng}`, '_blank')}
+                        title="View exact GPS location on Google Maps"
+                      >
+                        <MapPin className="h-4 w-4" />
+                      </button>
                       <div>
-                        <div className="text-xs font-medium">{d.location.lat.toFixed(4)}, {d.location.lng.toFixed(4)}</div>
-                        <div className="text-[11px] text-muted-foreground leading-tight mt-0.5">
-                          {d.cell ? `${d.cell}, ${d.sector}, ${d.district}, ${d.province}` : d.location.address}
+                        <div className="text-[11px] font-black text-foreground">{d.location.lat.toFixed(4)}, {d.location.lng.toFixed(4)}</div>
+                        <div className="text-[10px] text-muted-foreground leading-tight mt-0.5 font-bold uppercase tracking-tighter">
+                          {d.address || (d.cell ? `${d.cell}, ${d.sector}, ${d.district}` : d.location.address)}
                         </div>
                       </div>
                     </div>
@@ -391,10 +437,10 @@ export function DevicesPage() {
                   <td className="px-4 py-4">
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-2">
-                        <span className={`h-2 w-2 rounded-full ${d.status === 'online' ? 'bg-success animate-pulse' : 'bg-destructive'}`} />
-                        <span className="text-xs font-medium capitalize">{d.status}</span>
+                        <span className={`h-2.5 w-2.5 rounded-full ${d.status === 'online' ? 'bg-success animate-pulse shadow-[0_0_8px_rgba(var(--success),0.5)]' : 'bg-destructive'}`} />
+                        <span className="text-[10px] font-black uppercase tracking-widest">{d.status}</span>
                       </div>
-                      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground bg-secondary/50 p-1 rounded border border-border/50">
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground bg-secondary/50 px-2 py-1 rounded border border-border/50 w-fit">
                         <Activity className="h-3 w-3" />
                         <span className="truncate">{d.lastData}</span>
                       </div>
@@ -424,30 +470,124 @@ export function DevicesPage() {
                       <Button 
                         size="sm" 
                         variant="outline" 
-                        className="text-xs h-8"
+                        className="text-[10px] font-black uppercase tracking-widest h-8 px-3 border-primary/20 text-primary hover:bg-primary/5"
                         onClick={() => handleOpenDetectionDialog(d)}
                       >
-                        View Detection Data
+                        Detection Data
                       </Button>
                     )}
                   </td>
                 </tr>
               ))}
-              {filteredDevices.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                    No AI Vandalism Detection units found.
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
         </div>
-        <Pagination 
-          currentPage={currentPage} 
-          totalPages={totalPages} 
-          onPageChange={setCurrentPage} 
-        />
+
+        {/* Mobile Card List */}
+        <div className="md:hidden divide-y divide-border">
+          {paginatedDevices.map((d) => (
+            <div key={d.id} className="p-4 space-y-4 hover:bg-secondary/20 transition-colors">
+              <div className="flex justify-between items-start">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-primary/10 text-primary border border-primary/20 shadow-sm">
+                    <Camera className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="font-mono text-base font-black uppercase tracking-tight text-foreground">{d.id}</div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className={`h-2 w-2 rounded-full ${d.status === 'online' ? 'bg-success animate-pulse' : 'bg-destructive'}`} />
+                      <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{d.status}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-primary bg-primary/5 px-2 py-1 rounded">Unit active</div>
+                  <div className="text-[9px] font-bold text-muted-foreground mt-1 tabular-nums">IP: {d.ipAddress || '---'}</div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Location Hub</span>
+                  <div className="text-[11px] font-bold text-foreground truncate leading-tight">
+                    {d.district} Station area<br/>
+                    <span className="text-muted-foreground">{d.cell || d.sector} site</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Live Telemetry</span>
+                  <div className="text-[11px] font-bold text-primary flex items-center gap-1.5">
+                    <Activity className="h-3 w-3" />
+                    {d.lastData}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5 items-center">
+                {d.securityContacts && d.securityContacts.length > 0 ? (
+                  d.securityContacts.map((c: any) => (
+                    <div key={c.id} className="bg-primary/5 text-primary border border-primary/20 text-[9px] font-bold px-2 py-1 rounded-full flex items-center gap-1">
+                      <ShieldCheck className="h-3 w-3" />
+                      {c.name}
+                    </div>
+                  ))
+                ) : (
+                  <span className="text-[10px] text-muted-foreground italic font-medium">No linked personnel</span>
+                )}
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-7 w-7 text-primary hover:bg-primary/10" 
+                  onClick={() => handleOpenLinkDialog(d)}
+                >
+                  <UserPlus className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                {user?.role === "HQ_ADMIN" ? (
+                  <>
+                    <Button 
+                      className="flex-1 h-11 font-black uppercase tracking-widest text-[10px] gap-2"
+                      onClick={() => handleEditClick(d)}
+                    >
+                      <Edit className="h-4 w-4" /> Edit Unit
+                    </Button>
+                    <Button 
+                      variant="destructive"
+                      className="h-11 px-4"
+                      onClick={() => handleDeleteClick(d)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </>
+                ) : (
+                  <Button 
+                    className="flex-1 h-12 font-black uppercase tracking-widest text-[11px] gap-2 bg-primary text-primary-foreground shadow-lg"
+                    onClick={() => handleOpenDetectionDialog(d)}
+                  >
+                    <Activity className="h-4 w-4" /> View Live Detection Data
+                  </Button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {filteredDevices.length === 0 && (
+          <div className="px-4 py-12 text-center text-muted-foreground bg-secondary/5">
+            <Camera className="h-10 w-10 mx-auto mb-3 opacity-20" />
+            <p className="font-bold text-sm">No AI Vandalism Detection units found.</p>
+          </div>
+        )}
+
+        <div className="p-3 md:p-4 border-t border-border bg-secondary/5">
+          <Pagination 
+            currentPage={currentPage} 
+            totalPages={totalPages} 
+            onPageChange={setCurrentPage} 
+          />
+        </div>
       </div>
 
       <Dialog open={isLinkDialogOpen} onOpenChange={setIsLinkDialogOpen}>
@@ -617,14 +757,14 @@ export function DevicesPage() {
                 <div className="bg-secondary/40 rounded-lg p-4 space-y-3 text-sm">
                   <div>
                     <span className="text-muted-foreground block mb-1">Full Address:</span>
-                    <span className="leading-tight">{selectedDevice?.cell}, {selectedDevice?.sector}, {selectedDevice?.district}, {selectedDevice?.province}</span>
+                    <span className="leading-tight font-bold">{selectedDevice?.address || `${selectedDevice?.cell}, ${selectedDevice?.sector}, ${selectedDevice?.district}, ${selectedDevice?.province}`}</span>
                   </div>
                   <div className="flex justify-between items-center pt-2 border-t border-border/50">
                     <span className="text-xs font-mono text-muted-foreground">
                       {selectedDevice?.location.lat.toFixed(6)}, {selectedDevice?.location.lng.toFixed(6)}
                     </span>
-                    <Button variant="link" size="sm" className="h-auto p-0 text-primary flex items-center gap-1" onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${selectedDevice?.location.lat},${selectedDevice?.location.lng}`, '_blank')}>
-                      MAP VIEW <ExternalLink className="h-3 w-3" />
+                    <Button variant="link" size="sm" className="h-auto p-0 text-primary flex items-center gap-1 font-black" onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${selectedDevice?.location.lat},${selectedDevice?.location.lng}`, '_blank')}>
+                      OPEN IN MAPS <ExternalLink className="h-3 w-3" />
                     </Button>
                   </div>
                 </div>
@@ -832,7 +972,7 @@ export function DevicesPage() {
                 <Label>Cell</Label>
                 <Select
                   value={formData.cell}
-                  onValueChange={(v) => setFormData({ ...formData, cell: v })}
+                  onValueChange={(v) => setFormData({ ...formData, cell: v, village: "" })}
                   disabled={!formData.sector}
                 >
                   <SelectTrigger>
@@ -841,6 +981,23 @@ export function DevicesPage() {
                   <SelectContent>
                     {cells.map((c) => (
                       <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Village</Label>
+                <Select
+                  value={formData.village}
+                  onValueChange={(v) => setFormData({ ...formData, village: v })}
+                  disabled={!formData.cell}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select village" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {villages.map((v) => (
+                      <SelectItem key={v} value={v}>{v}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -984,7 +1141,7 @@ export function DevicesPage() {
                 <Label>Cell</Label>
                 <Select
                   value={formData.cell}
-                  onValueChange={(v) => setFormData({ ...formData, cell: v })}
+                  onValueChange={(v) => setFormData({ ...formData, cell: v, village: "" })}
                   disabled={!formData.sector}
                 >
                   <SelectTrigger>
@@ -993,6 +1150,23 @@ export function DevicesPage() {
                   <SelectContent>
                     {cells.map((c) => (
                       <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Village</Label>
+                <Select
+                  value={formData.village}
+                  onValueChange={(v) => setFormData({ ...formData, village: v })}
+                  disabled={!formData.cell}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select village" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {villages.map((v) => (
+                      <SelectItem key={v} value={v}>{v}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

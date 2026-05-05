@@ -39,4 +39,28 @@ export class CreateIncidentDto {
   @IsEnum(IncidentStatus)
   @IsOptional()
   status?: IncidentStatus;
+
+  @IsString()
+  @IsOptional()
+  alertType?: string;
+
+  @IsString()
+  @IsOptional()
+  pirSensor?: string;
+
+  @IsNumber()
+  @IsOptional()
+  servoPosition?: number;
+
+  @IsNumber()
+  @IsOptional()
+  gpsLatitude?: number;
+
+  @IsNumber()
+  @IsOptional()
+  gpsLongitude?: number;
+
+  @IsString()
+  @IsOptional()
+  aiSummary?: string;
 }

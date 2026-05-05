@@ -31,4 +31,14 @@ export class LocationsController {
   ) {
     return this.locationsService.getCells(province, district, sector);
   }
+
+  @Get('villages')
+  getVillages(
+    @Query('province') province: string,
+    @Query('district') district: string,
+    @Query('sector') sector: string,
+    @Query('cell') cell: string,
+  ) {
+    return this.locationsService.getVillages(province, district, sector, cell);
+  }
 }

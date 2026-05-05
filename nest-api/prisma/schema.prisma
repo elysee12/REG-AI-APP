@@ -12,6 +12,7 @@ model Branch {
   name      String
   region    String
   address   String
+  village   String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   devices   Device[]
@@ -32,11 +33,17 @@ model Device {
   lng            Float
   address        String
 
+  // Hardware Status
+  cameraConnected Boolean  @default(true)
+  esp32Connected  Boolean  @default(true)
+  gpsSatellites   Int      @default(0)
+
   ipAddress      String?
   province       String?
   district       String?
   sector         String?
   cell           String?
+  village        String?
   lastData       String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -60,6 +67,7 @@ model SecurityContact {
   district  String?
   sector    String?
   cell      String?
+  village   String?
   lat       Float?
   lng       Float?
 
@@ -95,15 +103,25 @@ model Incident {
    deviceId        String 
  
    // AI Results
-   aiClass         IncidentClass? @default(SUSPICIOUS)
+   aiClass         String?   @default("SUSPICIOUS")
    aiConfidence    Float?    // e.g., 0.98
+   alertType       String?   // e.g., "THREAT"
    
    // Evidence & Logic
    videoPath       String?   // URL to video evidence
    alertStatus     Boolean  @default(false) // true=thief, false=suspicious
    
+   // Device Status Data from FastAPI
+   pirSensor       String?   // e.g., "A"
+   servoPosition   Int?      // e.g., 0
+   gpsLatitude     Float? 
+   gpsLongitude    Float? 
+
+   // Dynamic AI Summary
+   aiSummary       String?   @db.Text
+
    // Workflow Status
-   status          IncidentStatus @default(ACTIVE)
+   status          String    @default("ACTIVE")
 
    // Timestamp
    time            DateTime @default(now()) 
@@ -137,9 +155,10 @@ model Location {
   district_name String @db.VarChar(100)
   sector_name   String @db.VarChar(100)
   cell_name     String @db.VarChar(100)
+  village_name  String @db.VarChar(100) @default("")
   cell_id       Int    @default(0)
 
-  @@unique([province_name, district_name, sector_name, cell_name])
+  @@unique([province_name, district_name, sector_name, cell_name, village_name])
   @@map("locations")
 }
 

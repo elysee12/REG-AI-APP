@@ -37,6 +37,10 @@ export class CreateSecurityContactDto {
   @IsOptional()
   cell?: string;
 
+  @IsString()
+  @IsOptional()
+  village?: string;
+
   @IsNumber()
   @IsOptional()
   lat?: number;

@@ -1,3 +1,43 @@
+import locationsData from "@/assets/rwanda_locations.json";
+
+export const RWANDA_LOCATIONS = locationsData.items;
+
+export const getProvinces = () => {
+  return RWANDA_LOCATIONS.map(p => p.name);
+};
+
+export const getDistricts = (provinceName: string) => {
+  const province = RWANDA_LOCATIONS.find(p => p.name === provinceName);
+  return province ? province.districts.map(d => d.name) : [];
+};
+
+export const getSectors = (provinceName: string, districtName: string) => {
+  const province = RWANDA_LOCATIONS.find(p => p.name === provinceName);
+  if (!province) return [];
+  const district = province.districts.find(d => d.name === districtName);
+  return district ? district.sectors.map(s => s.name) : [];
+};
+
+export const getCells = (provinceName: string, districtName: string, sectorName: string) => {
+  const province = RWANDA_LOCATIONS.find(p => p.name === provinceName);
+  if (!province) return [];
+  const district = province.districts.find(d => d.name === districtName);
+  if (!district) return [];
+  const sector = district.sectors.find(s => s.name === sectorName);
+  return sector ? sector.cells.map(c => c.name) : [];
+};
+
+export const getVillages = (provinceName: string, districtName: string, sectorName: string, cellName: string) => {
+  const province = RWANDA_LOCATIONS.find(p => p.name === provinceName);
+  if (!province) return [];
+  const district = province.districts.find(d => d.name === districtName);
+  if (!district) return [];
+  const sector = district.sectors.find(s => s.name === sectorName);
+  if (!sector) return [];
+  const cell = sector.cells.find(c => c.name === cellName);
+  return cell ? cell.villages : [];
+};
+
 export const DISTRICT_COORDINATES: Record<string, { lat: number; lng: number }> = {
   // Kigali
   'Nyarugenge': { lat: -1.9441, lng: 30.0619 },

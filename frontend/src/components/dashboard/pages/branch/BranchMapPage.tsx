@@ -80,16 +80,16 @@ export function BranchMapPage() {
   };
 
   return (
-    <div className="p-4 md:p-6 grid grid-cols-1 xl:grid-cols-4 gap-4 h-[calc(100vh-4rem)]">
-      {/* Filters/Search */}
-      <aside className="bg-card border border-border rounded-xl shadow-card p-4 xl:col-span-1 overflow-y-auto">
+    <div className="p-2 md:p-6 grid grid-cols-1 xl:grid-cols-4 gap-3 md:gap-4 h-[calc(100vh-8rem)] md:h-[calc(100vh-4rem)]">
+      {/* Filters/Search - Hide on mobile if device selected */}
+      <aside className={`bg-card border border-border rounded-xl shadow-card p-4 xl:col-span-1 overflow-y-auto ${selectedDevice ? "hidden xl:block" : "block"}`}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Filter className="h-4 w-4 text-primary" />
-            <h2 className="font-semibold">Local Monitoring</h2>
+            <h2 className="font-bold tracking-tight">Branch Monitoring</h2>
           </div>
           {(search || filters.vandalismOnly || !filters.onlineOnly) && (
-            <button onClick={handleRecenter} className="text-[10px] text-primary hover:underline font-bold">Reset All</button>
+            <button onClick={handleRecenter} className="text-[10px] text-primary hover:underline font-black uppercase">Reset</button>
           )}
         </div>
         
@@ -97,7 +97,7 @@ export function BranchMapPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input 
             placeholder="Search Serial Number..." 
-            className="pl-9 h-10" 
+            className="pl-9 h-11 md:h-10 text-sm font-medium" 
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -105,23 +105,23 @@ export function BranchMapPage() {
 
         <div className="space-y-6">
           <div className="space-y-3">
-            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Quick Filters</div>
+            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Quick Filters</div>
             <div className="space-y-2">
-              <label className="flex items-center gap-2 text-sm cursor-pointer p-2 rounded hover:bg-secondary/40 transition-colors">
+              <label className="flex items-center gap-3 text-sm font-bold cursor-pointer p-3 rounded-lg hover:bg-secondary/40 transition-colors border border-transparent hover:border-border">
                 <input 
                   type="checkbox" 
                   checked={filters.vandalismOnly} 
                   onChange={(e) => setFilters({...filters, vandalismOnly: e.target.checked})}
-                  className="accent-primary"
+                  className="accent-primary h-4 w-4"
                 />
                 Show Vandalism Alerts
               </label>
-              <label className="flex items-center gap-2 text-sm cursor-pointer p-2 rounded hover:bg-secondary/40 transition-colors">
+              <label className="flex items-center gap-3 text-sm font-bold cursor-pointer p-3 rounded-lg hover:bg-secondary/40 transition-colors border border-transparent hover:border-border">
                 <input 
                   type="checkbox" 
                   checked={filters.onlineOnly} 
                   onChange={(e) => setFilters({...filters, onlineOnly: e.target.checked})}
-                  className="accent-primary"
+                  className="accent-primary h-4 w-4"
                 />
                 Online Units Only
               </label>
@@ -129,37 +129,37 @@ export function BranchMapPage() {
           </div>
 
           <div className="space-y-3">
-            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Branch Units ({filteredDevices.length})</div>
-            <div className="space-y-2">
+            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Branch Units ({filteredDevices.length})</div>
+            <div className="space-y-2 pb-4">
               {filteredDevices.map(device => (
                 <button
                   key={device.id}
                   onClick={() => setSelectedDevice(device)}
-                  className={`w-full text-left p-3 rounded-lg border transition-all ${
+                  className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
                     selectedDevice?.id === device.id 
-                      ? "bg-primary/10 border-primary shadow-sm ring-1 ring-primary/20" 
+                      ? "bg-primary/10 border-primary shadow-md ring-1 ring-primary/20" 
                       : "bg-secondary/20 border-transparent hover:bg-secondary/40"
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Camera className="h-3.5 w-3.5 text-primary" />
+                    <div className="flex items-center gap-2.5">
+                      <Camera className="h-4 w-4 text-primary" />
                       <div className="flex flex-col">
-                        <span className="font-mono font-bold text-xs">{device.id}</span>
+                        <span className="font-mono font-black text-xs tracking-tight">{device.id}</span>
                         {device.ipAddress && (
-                          <span className="text-[8px] font-mono text-muted-foreground">IP: {device.ipAddress}</span>
+                          <span className="text-[9px] font-mono text-muted-foreground font-bold">IP: {device.ipAddress}</span>
                         )}
                       </div>
                     </div>
-                    <div className={`h-2 w-2 rounded-full ${device.incidentStatus === 'vandalism' ? 'bg-primary animate-pulse' : 'bg-success'}`} />
+                    <div className={`h-2.5 w-2.5 rounded-full ${device.incidentStatus === 'vandalism' ? 'bg-primary animate-pulse shadow-[0_0_10px_rgba(var(--primary),0.5)]' : 'bg-success'}`} />
                   </div>
-                  <div className="mt-1 text-[10px] text-muted-foreground truncate">
+                  <div className="mt-2 text-[11px] text-muted-foreground truncate font-medium">
                     {device.location.address}
                   </div>
                 </button>
               ))}
               {filteredDevices.length === 0 && (
-                <div className="text-center py-8 text-xs text-muted-foreground italic">
+                <div className="text-center py-10 text-xs text-muted-foreground italic font-medium opacity-50">
                   No units matching filters.
                 </div>
               )}
@@ -169,35 +169,40 @@ export function BranchMapPage() {
       </aside>
 
       {/* Map */}
-      <div className="xl:col-span-3 bg-card border border-border rounded-xl shadow-card flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between p-4 border-b border-border">
+      <div className={`xl:col-span-3 bg-card border border-border rounded-xl shadow-card flex flex-col overflow-hidden ${selectedDevice ? "flex" : "hidden xl:flex"}`}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 md:p-4 border-b border-border bg-secondary/5 gap-3">
           <div>
-            <h2 className="font-semibold">Branch Security Map — {user?.branchName}</h2>
-            <p className="text-xs text-muted-foreground">{branchDevices.length} total units · {branchDevices.filter(d => d.incidentStatus === 'vandalism').length} active alerts</p>
+            <h2 className="font-black text-foreground tracking-tight flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-primary" />
+              {user?.branchName} Security Map
+            </h2>
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">
+              {branchDevices.length} Total Units · <span className="text-primary">{branchDevices.filter(d => d.incidentStatus === 'vandalism').length} Critical Alerts</span>
+            </p>
           </div>
           <div className="flex gap-2">
             <Button 
               variant={isClustered ? "default" : "outline"} 
               size="sm" 
-              className={`gap-2 ${isClustered ? "bg-primary text-primary-foreground shadow-md" : ""}`}
+              className={`flex-1 sm:flex-none gap-2 h-9 text-[10px] font-black uppercase tracking-widest ${isClustered ? "bg-primary text-primary-foreground shadow-md" : ""}`}
               onClick={() => setIsClustered(!isClustered)}
             >
               <div className={`h-1.5 w-1.5 rounded-full ${isClustered ? "bg-white animate-pulse" : "bg-muted-foreground"}`} />
-              Cluster view
+              Cluster
             </Button>
             <Button 
               size="sm" 
               variant="outline" 
-              className="gap-2 hover:bg-secondary"
+              className="flex-1 sm:flex-none gap-2 h-9 text-[10px] font-black uppercase tracking-widest hover:bg-secondary"
               onClick={handleRecenter}
             >
               <MapPin className="h-3.5 w-3.5" />
-              Recenter Map
+              Recenter
             </Button>
           </div>
         </div>
-        <div className="flex-1 grid grid-rows-[1fr_auto]">
-          <div className="relative">
+        <div className="flex-1 grid grid-rows-[1fr_auto] relative">
+          <div className="relative w-full h-full min-h-[300px]">
             <MiniMap 
               items={filteredDevices} 
               type="device" 
@@ -209,60 +214,58 @@ export function BranchMapPage() {
           </div>
           {/* Bottom detail card */}
           {displayedSelectedDevice && (
-            <div className="border-t border-border p-4 bg-secondary/40 animate-in slide-in-from-bottom-2 duration-300">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2">
+            <div className="border-t border-border p-4 bg-card/95 backdrop-blur-md animate-in slide-in-from-bottom-full duration-500 shadow-[0_-10px_20px_rgba(0,0,0,0.1)] z-10">
+              <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                <div className="flex-1">
+                  <div className="flex flex-wrap items-center gap-2 mb-2">
                     {displayedSelectedDevice.incidentStatus === 'vandalism' ? (
                       <SeverityPill level="critical" />
                     ) : (
                       <StatusPill status="solved" />
                     )}
-                    <span className="font-mono text-xs text-muted-foreground">{displayedSelectedDevice.id}</span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${displayedSelectedDevice.status === 'online' ? 'bg-success/10 text-success' : 'bg-muted/10 text-muted-foreground'}`}>
-                      {displayedSelectedDevice.status.toUpperCase()}
+                    <span className="font-mono text-[10px] font-black text-primary bg-primary/10 px-2 py-0.5 rounded tracking-widest">{displayedSelectedDevice.id}</span>
+                    <span className={`text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-widest ${displayedSelectedDevice.status === 'online' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>
+                      {displayedSelectedDevice.status}
                     </span>
                     {displayedSelectedDevice.ipAddress && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-secondary text-muted-foreground font-mono">
+                      <span className="text-[9px] font-black px-2 py-0.5 rounded bg-secondary text-muted-foreground font-mono">
                         {displayedSelectedDevice.ipAddress}
                       </span>
                     )}
                   </div>
-                  <h3 className="mt-1 font-semibold">AI Unit Location</h3>
-                  <div className="flex flex-col gap-1 mt-0.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tight">Village/Cell:</span>
-                      <span className="text-[11px] font-bold text-foreground">{displayedSelectedDevice.cell || '---'}</span>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 mt-3">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-0.5">Location Hub</span>
+                      <span className="text-sm font-black text-foreground tracking-tight">{displayedSelectedDevice.district} Station — {displayedSelectedDevice.cell || 'Main Site'}</span>
                     </div>
-                    <button 
-                      onClick={() => setShowCoords(!showCoords)}
-                      className="text-xs text-muted-foreground flex items-center gap-1.5 hover:text-primary transition-colors text-left group w-fit"
-                    >
-                      <MapPin className={`h-3 w-3 ${showCoords ? 'text-primary' : ''}`} /> 
-                      <span className="group-hover:underline">{displayedSelectedDevice.location.address}</span>
-                    </button>
-                    {showCoords && (
-                      <div className="flex items-center gap-2 p-1.5 rounded bg-primary/5 border border-primary/10 animate-in fade-in slide-in-from-top-1 duration-200 w-fit">
-                        <div className="text-[9px] font-mono text-primary font-bold">
-                          GPS: {displayedSelectedDevice.location.lat.toFixed(6)}, {displayedSelectedDevice.location.lng.toFixed(6)}
-                        </div>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-0.5">Live Coordinates</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono font-bold text-primary">GPS: {displayedSelectedDevice.location.lat.toFixed(6)}, {displayedSelectedDevice.location.lng.toFixed(6)}</span>
                         <button 
-                          className="text-[9px] font-bold text-primary hover:underline ml-1"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            window.open(`https://www.google.com/maps/search/?api=1&query=${displayedSelectedDevice.location.lat},${displayedSelectedDevice.location.lng}`, '_blank');
-                          }}
+                          className="text-[10px] font-black text-primary hover:underline uppercase tracking-tighter"
+                          onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${displayedSelectedDevice.location.lat},${displayedSelectedDevice.location.lng}`, '_blank')}
                         >
-                          OPEN MAP
+                          Navigate →
                         </button>
                       </div>
-                    )}
+                    </div>
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-1">Last Data: {displayedSelectedDevice.lastData}</p>
+                  
+                  <p className="text-[11px] font-bold text-muted-foreground mt-3 italic leading-snug">
+                    <MapPin className="h-3 w-3 inline mr-1 text-primary" />
+                    {displayedSelectedDevice.location.address}
+                  </p>
                 </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => window.location.href='/dashboard/incidents'}>View Incidents</Button>
-                  <Button size="sm" onClick={() => setSelectedDevice(null)}>Close</Button>
+                
+                <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-border sm:border-0 sm:pt-0">
+                  <Button variant="outline" className="flex-1 h-11 md:h-9 font-black uppercase tracking-widest text-[10px] gap-2" onClick={() => window.location.href='/dashboard/incidents'}>
+                    <Camera className="h-3.5 w-3.5" /> View Incidents
+                  </Button>
+                  <Button className="flex-1 h-11 md:h-9 font-black uppercase tracking-widest text-[10px] bg-foreground text-background" onClick={() => setSelectedDevice(null)}>
+                    Close Panel
+                  </Button>
                 </div>
               </div>
             </div>
@@ -272,3 +275,4 @@ export function BranchMapPage() {
     </div>
   );
 }
+

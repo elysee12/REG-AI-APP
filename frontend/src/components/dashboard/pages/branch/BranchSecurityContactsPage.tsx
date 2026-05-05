@@ -34,7 +34,8 @@ export function BranchSecurityContactsPage() {
     fetchProvinces,
     fetchDistricts,
     fetchSectors,
-    fetchCells
+    fetchCells,
+    fetchVillages
   } = useDataStore();
   const user = useAuthStore((state) => state.user);
   
@@ -42,6 +43,7 @@ export function BranchSecurityContactsPage() {
   const [districts, setDistricts] = useState<string[]>([]);
   const [sectors, setSectors] = useState<string[]>([]);
   const [cells, setCells] = useState<string[]>([]);
+  const [villages, setVillages] = useState<string[]>([]);
 
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -68,40 +70,56 @@ export function BranchSecurityContactsPage() {
     district: "",
     sector: "",
     cell: "",
+    village: "",
   });
 
   useEffect(() => {
     if (formData.province) {
       fetchDistricts(formData.province).then(setDistricts);
-      setFormData(prev => ({ ...prev, district: "", sector: "", cell: "" }));
+      setFormData(prev => ({ ...prev, district: "", sector: "", cell: "", village: "" }));
       setSectors([]);
       setCells([]);
+      setVillages([]);
     } else {
       setDistricts([]);
       setSectors([]);
       setCells([]);
+      setVillages([]);
     }
   }, [formData.province, fetchDistricts]);
 
   useEffect(() => {
     if (formData.province && formData.district) {
       fetchSectors(formData.province, formData.district).then(setSectors);
-      setFormData(prev => ({ ...prev, sector: "", cell: "" }));
+      setFormData(prev => ({ ...prev, sector: "", cell: "", village: "" }));
       setCells([]);
+      setVillages([]);
     } else {
       setSectors([]);
       setCells([]);
+      setVillages([]);
     }
   }, [formData.province, formData.district, fetchSectors]);
 
   useEffect(() => {
     if (formData.province && formData.district && formData.sector) {
       fetchCells(formData.province, formData.district, formData.sector).then(setCells);
-      setFormData(prev => ({ ...prev, cell: "" }));
+      setFormData(prev => ({ ...prev, cell: "", village: "" }));
+      setVillages([]);
     } else {
       setCells([]);
+      setVillages([]);
     }
   }, [formData.province, formData.district, formData.sector, fetchCells]);
+
+  useEffect(() => {
+    if (formData.province && formData.district && formData.sector && formData.cell) {
+      fetchVillages(formData.province, formData.district, formData.sector, formData.cell).then(setVillages);
+      setFormData(prev => ({ ...prev, village: "" }));
+    } else {
+      setVillages([]);
+    }
+  }, [formData.province, formData.district, formData.sector, formData.cell, fetchVillages]);
 
   const filteredContacts = securityContacts.filter((c) =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -131,6 +149,7 @@ export function BranchSecurityContactsPage() {
       district: "",
       sector: "",
       cell: "",
+      village: "",
     });
     setIsDialogOpen(true);
   };
@@ -146,6 +165,7 @@ export function BranchSecurityContactsPage() {
       district: contact.district || "",
       sector: contact.sector || "",
       cell: contact.cell || "",
+      village: contact.village || "",
     });
     setIsDialogOpen(true);
   };
@@ -154,7 +174,7 @@ export function BranchSecurityContactsPage() {
     e.preventDefault();
     setIsLoading(true);
 
-    const address = formData.cell ? `${formData.cell}, ${formData.sector}, ${formData.district}, ${formData.province}` : "";
+    const address = formData.village ? `${formData.village}, ${formData.cell}, ${formData.sector}, ${formData.district}, ${formData.province}` : (formData.cell ? `${formData.cell}, ${formData.sector}, ${formData.district}, ${formData.province}` : "");
 
     const payload = {
       ...formData,
@@ -262,7 +282,7 @@ export function BranchSecurityContactsPage() {
                         {contact.district ? (
                           <div className="space-y-1">
                             <div className="text-xs font-medium">{contact.district}, {contact.province}</div>
-                            <div className="text-[10px] text-muted-foreground">{contact.cell}, {contact.sector}</div>
+                            <div className="text-[10px] text-muted-foreground">{contact.village ? `${contact.village}, ` : ""}{contact.cell}, {contact.sector}</div>
                           </div>
                         ) : (
                           <span className="text-xs text-muted-foreground italic">No area assigned</span>
@@ -397,7 +417,7 @@ export function BranchSecurityContactsPage() {
                 <Label>Cell</Label>
                 <Select
                   value={formData.cell}
-                  onValueChange={(v) => setFormData({ ...formData, cell: v })}
+                  onValueChange={(v) => setFormData({ ...formData, cell: v, village: "" })}
                   disabled={!formData.sector}
                 >
                   <SelectTrigger>
@@ -410,6 +430,24 @@ export function BranchSecurityContactsPage() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Village</Label>
+              <Select
+                value={formData.village}
+                onValueChange={(v) => setFormData({ ...formData, village: v })}
+                disabled={!formData.cell}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select village" />
+                </SelectTrigger>
+                <SelectContent>
+                  {villages.map((v) => (
+                    <SelectItem key={v} value={v}>{v}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <DialogFooter className="pt-4">

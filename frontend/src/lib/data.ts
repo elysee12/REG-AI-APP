@@ -1,7 +1,14 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { User } from './auth';
-import { getDistrictCenter } from './locations';
+import { 
+  getProvinces, 
+  getDistricts, 
+  getSectors, 
+  getCells, 
+  getVillages,
+  getDistrictCenter 
+} from './locations';
 import { API_BASE } from './config';
 
 export interface Branch {
@@ -23,11 +30,15 @@ export interface Device {
   district?: string;
   sector?: string;
   cell?: string;
+  village?: string;
   location: {
     lat: number;
     lng: number;
     address: string;
   };
+  cameraConnected?: boolean;
+  esp32Connected?: boolean;
+  gpsSatellites?: number;
   lastData: string;
   securityContacts?: any[];
 }
@@ -76,6 +87,7 @@ interface DataState {
   fetchDistricts: (province: string) => Promise<string[]>;
   fetchSectors: (province: string, district: string) => Promise<string[]>;
   fetchCells: (province: string, district: string, sector: string) => Promise<string[]>;
+  fetchVillages: (province: string, district: string, sector: string, cell: string) => Promise<string[]>;
   
   fetchDevices: () => Promise<void>;
   addDevice: (device: { 
@@ -87,6 +99,7 @@ interface DataState {
     district?: string;
     sector?: string;
     cell?: string;
+    village?: string;
     address: string;
     lat: number;
     lng: number;
@@ -99,6 +112,7 @@ interface DataState {
     district?: string;
     sector?: string;
     cell?: string;
+    village?: string;
     address?: string;
     lat?: number;
     lng?: number;
@@ -345,35 +359,23 @@ export const useDataStore = create<DataState>()(
       },
 
       fetchProvinces: async () => {
-        try {
-          const response = await secureFetch(`${API_BASE}/locations/provinces`);
-          if (response.ok) return await response.json();
-          return [];
-        } catch (error) { return []; }
+        return getProvinces();
       },
 
       fetchDistricts: async (province) => {
-        try {
-          const response = await secureFetch(`${API_BASE}/locations/districts?province=${encodeURIComponent(province)}`);
-          if (response.ok) return await response.json();
-          return [];
-        } catch (error) { return []; }
+        return getDistricts(province);
       },
 
       fetchSectors: async (province, district) => {
-        try {
-          const response = await secureFetch(`${API_BASE}/locations/sectors?province=${encodeURIComponent(province)}&district=${encodeURIComponent(district)}`);
-          if (response.ok) return await response.json();
-          return [];
-        } catch (error) { return []; }
+        return getSectors(province, district);
       },
 
       fetchCells: async (province, district, sector) => {
-        try {
-          const response = await secureFetch(`${API_BASE}/locations/cells?province=${encodeURIComponent(province)}&district=${encodeURIComponent(district)}&sector=${encodeURIComponent(sector)}`);
-          if (response.ok) return await response.json();
-          return [];
-        } catch (error) { return []; }
+        return getCells(province, district, sector);
+      },
+
+      fetchVillages: async (province, district, sector, cell) => {
+        return getVillages(province, district, sector, cell);
       },
 
       fetchDevices: async () => {
@@ -418,6 +420,7 @@ export const useDataStore = create<DataState>()(
               district: device.district,
               sector: device.sector,
               cell: device.cell,
+              village: device.village,
               address: device.address,
               lat: device.lat,
               lng: device.lng
@@ -488,6 +491,11 @@ export const useDataStore = create<DataState>()(
               alertStatus: i.alertStatus,
               videoPath: i.videoPath,
               status: i.status.toLowerCase(), // ACTIVE, PENDING, SOLVED -> active, pending, solved
+              pirSensor: i.pirSensor,
+              servoPosition: i.servoPosition,
+              gpsLatitude: i.gpsLatitude,
+              gpsLongitude: i.gpsLongitude,
+              aiSummary: i.aiSummary,
               // Derived fields for UI compatibility
               severity: i.alertStatus ? 'critical' : 'warning',
               type: i.aiClass || 'SUSPICIOUS'
@@ -516,6 +524,11 @@ export const useDataStore = create<DataState>()(
               alertStatus: i.alertStatus,
               videoPath: i.videoPath,
               status: i.status.toLowerCase(),
+              pirSensor: i.pirSensor,
+              servoPosition: i.servoPosition,
+              gpsLatitude: i.gpsLatitude,
+              gpsLongitude: i.gpsLongitude,
+              aiSummary: i.aiSummary,
               severity: i.alertStatus ? 'critical' : 'warning',
               type: i.aiClass || 'SUSPICIOUS'
             })) });
@@ -532,6 +545,11 @@ export const useDataStore = create<DataState>()(
               ...i,
               ticketId: `INC-${i.id.split('-')[0].toUpperCase()}`,
               status: i.status?.toLowerCase() || 'active',
+              pirSensor: i.pirSensor,
+              servoPosition: i.servoPosition,
+              gpsLatitude: i.gpsLatitude,
+              gpsLongitude: i.gpsLongitude,
+              aiSummary: i.aiSummary,
               severity: i.alertStatus ? 'critical' : 'warning',
               type: i.aiClass || 'AI Detection'
             };

@@ -56,4 +56,20 @@ export class LocationsService {
     });
     return locations.map(l => l.cell_name);
   }
+
+  async getVillages(provinceName: string, districtName: string, sectorName: string, cellName: string) {
+    const locations = await this.prisma.location.findMany({
+      where: {
+        province_name: provinceName,
+        district_name: districtName,
+        sector_name: sectorName,
+        cell_name: cellName,
+      },
+      distinct: ['village_name'],
+      select: {
+        village_name: true,
+      },
+    });
+    return locations.map(l => l.village_name);
+  }
 }

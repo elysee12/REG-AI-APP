@@ -17,6 +17,15 @@ export class IncidentsService {
     const deviceId = createIncidentDto.deviceId;
     const now = new Date();
 
+    // Sanitize aiClass to ensure it's never an empty string
+    const sanitizedAiClass = (aiClass && String(aiClass).trim() !== '') ? aiClass : 'SUSPICIOUS';
+    
+    // Generate AI Summary if not provided
+    const aiSummary = createIncidentDto.aiSummary || this.generateAiSummary({
+      ...createIncidentDto,
+      aiClass: sanitizedAiClass as any
+    });
+
     // --- PERMANENT DEDUPLICATION LOGIC ---
     // Rule: One device can only have ONE "Active Session" (ACTIVE or PENDING) at a time.
     // Window: 2 minutes. After 2 minutes, a new incident will be created.
@@ -37,13 +46,11 @@ export class IncidentsService {
       orderBy: { time: 'desc' },
     });
 
-    // Sanitize aiClass to ensure it's never an empty string
-    const sanitizedAiClass = (aiClass && String(aiClass).trim() !== '') ? aiClass : 'SUSPICIOUS';
     console.log(`[IncidentsService] Creating/Updating incident. Original Class: "${aiClass}", Sanitized: "${sanitizedAiClass}"`);
 
     if (existingActiveIncident) {
       // 1. ESCALATION: If existing is SUSPICIOUS and new is a high-risk class, upgrade the session
-      const highRiskClasses = ['VANDAL', 'CLIMBING', 'CUTTING_WIRES', 'OPENING_BOX'];
+      const highRiskClasses = ['VANDAL', 'CLIMBING', 'CUTTING_WIRES', 'OPENING_BOX', 'THIEF'];
       const isEscalation = existingActiveIncident.aiClass === 'SUSPICIOUS' && 
                           highRiskClasses.includes(sanitizedAiClass as string);
       
@@ -54,6 +61,12 @@ export class IncidentsService {
           alertStatus: isEscalation ? true : existingActiveIncident.alertStatus,
           aiConfidence: createIncidentDto.aiConfidence ?? existingActiveIncident.aiConfidence,
           videoPath: createIncidentDto.videoPath ?? existingActiveIncident.videoPath,
+          alertType: createIncidentDto.alertType ?? existingActiveIncident.alertType,
+          pirSensor: createIncidentDto.pirSensor ?? existingActiveIncident.pirSensor,
+          servoPosition: createIncidentDto.servoPosition ?? existingActiveIncident.servoPosition,
+          gpsLatitude: createIncidentDto.gpsLatitude ?? existingActiveIncident.gpsLatitude,
+          gpsLongitude: createIncidentDto.gpsLongitude ?? existingActiveIncident.gpsLongitude,
+          aiSummary: aiSummary,
           time: now, // Update time to current to extend the 2-minute window
         },
         include: {
@@ -73,7 +86,7 @@ export class IncidentsService {
 
     // 2. NO ACTIVE SESSION: Create a new incident record
     let alertStatus = createIncidentDto.alertStatus;
-    const highRiskClasses = ['VANDAL', 'CLIMBING', 'CUTTING_WIRES', 'OPENING_BOX'];
+    const highRiskClasses = ['VANDAL', 'CLIMBING', 'CUTTING_WIRES', 'OPENING_BOX', 'THIEF'];
     if (highRiskClasses.includes(sanitizedAiClass as string)) {
       alertStatus = true;
     } else if (sanitizedAiClass === 'SUSPICIOUS') {
@@ -88,6 +101,12 @@ export class IncidentsService {
         videoPath: createIncidentDto.videoPath,
         alertStatus: alertStatus ?? false,
         status: (createIncidentDto.status as any) || IncidentStatus.ACTIVE,
+        alertType: createIncidentDto.alertType,
+        pirSensor: createIncidentDto.pirSensor,
+        servoPosition: createIncidentDto.servoPosition,
+        gpsLatitude: createIncidentDto.gpsLatitude,
+        gpsLongitude: createIncidentDto.gpsLongitude,
+        aiSummary: aiSummary,
         time: now,
       },
       include: {
@@ -108,6 +127,29 @@ export class IncidentsService {
     }
 
     return incident;
+  }
+
+  private generateAiSummary(dto: CreateIncidentDto): string {
+    const timeStr = new Date().toLocaleTimeString();
+    const confidence = dto.aiConfidence ? Math.round(dto.aiConfidence) : 95;
+    const aiClass = dto.aiClass || 'SUSPICIOUS';
+    const deviceId = dto.deviceId;
+    
+    let summary = `Detection Analysis: At ${timeStr}, AI Unit ${deviceId} identified high-probability ${aiClass} behavior. `;
+    
+    if (dto.alertType === 'THIEF') {
+      summary += `The pattern matches known THIEF signatures with ${confidence}% confidence. Immediate intervention is recommended. `;
+    } else {
+      summary += `The activity is classified as ${aiClass} with ${confidence}% confidence. `;
+    }
+
+    if (dto.pirSensor) {
+      summary += `Physical sensor (PIR ${dto.pirSensor}) confirmed localized motion at the unit. `;
+    }
+
+    summary += `System automatically flagged this event based on physical tampering sensors and computer vision analysis.`;
+    
+    return summary;
   }
 
   async findAssignedToUser(email: string) {

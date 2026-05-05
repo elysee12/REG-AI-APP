@@ -66,11 +66,17 @@ export class IncidentsController {
     // Prepare DTO and handle multipart string-to-number/boolean conversions
     const createIncidentDto: CreateIncidentDto = {
       deviceId: body.deviceId?.toString().trim(),
-      aiClass: body.aiClass?.toString().trim(),
-      aiConfidence: body.aiConfidence !== undefined ? parseFloat(body.aiConfidence) : parseFloat(body.confidence),
+      aiClass: (body.detectedClass || body.aiClass)?.toString().trim(),
+      aiConfidence: body.confidence !== undefined ? parseFloat(body.confidence) : (body.aiConfidence !== undefined ? parseFloat(body.aiConfidence) : 0),
       videoPath: videoPath,
-      alertStatus: body.alertStatus === 'true' || body.alertStatus === '1' || body.alertStatus === true,
-      status: body.status || IncidentStatus.ACTIVE,
+      alertStatus: body.alertType === 'THIEF' || body.alertStatus === 'true' || body.alertStatus === '1' || body.alertStatus === true,
+      status: body.status === 'NEW' ? IncidentStatus.ACTIVE : (body.status || IncidentStatus.ACTIVE),
+      alertType: body.alertType || (body.alertStatus === 'true' || body.alertStatus === true ? 'THIEF' : 'SUSPICIOUS'),
+      pirSensor: body.pirSensor?.toString(),
+      servoPosition: body.servoPosition !== undefined ? parseInt(body.servoPosition) : undefined,
+      gpsLatitude: body.gpsLatitude !== undefined ? parseFloat(body.gpsLatitude) : undefined,
+      gpsLongitude: body.gpsLongitude !== undefined ? parseFloat(body.gpsLongitude) : undefined,
+      aiSummary: body.aiSummary,
     };
 
     return this.incidentsService.create(createIncidentDto);

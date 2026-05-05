@@ -35,6 +35,21 @@ export class DevicesService {
     });
   }
 
+  async updateStatus(id: string, data: any) {
+    return this.prisma.device.update({
+      where: { id },
+      data: {
+        status: 'online',
+        cameraConnected: data.cameraConnected ?? true,
+        esp32Connected: data.esp32Connected ?? true,
+        gpsSatellites: data.gpsSatellites ?? 0,
+        lat: data.gpsLatitude ?? undefined,
+        lng: data.gpsLongitude ?? undefined,
+        updatedAt: new Date(),
+      },
+    });
+  }
+
   async remove(id: string) {
     // We need to handle related incidents first due to foreign key constraints
     return this.prisma.$transaction(async (tx) => {
