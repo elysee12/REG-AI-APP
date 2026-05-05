@@ -4,82 +4,58 @@ import * as bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 async function main() {
-  // 1. Generate Hashed Passwords
-  const hqAdminPassword = await bcrypt.hash('GRIDGuard-Admin-2026!', 10);
-  const user1Password = await bcrypt.hash('Telysee2002@', 10);
-  const user2Password = await bcrypt.hash('Telysee2002@', 10);
+  const commonPassword = await bcrypt.hash('Telysee2002@', 10);
 
-  // 2. Seed HQ Admin User
-  const admin = await prisma.user.upsert({
-    where: { email: 'admin@reg.gov.rw' },
-    update: {},
-    create: {
-      email: 'admin@reg.gov.rw',
-      fullName: 'HQ Administrator',
-      password: hqAdminPassword,
-      role: Role.HQ_ADMIN,
-      status: UserStatus.ENABLED,
-      mustChangePassword: false, // Set to 0
-    },
-  });
-
-  // 3. Seed Branch
+  // 1. Seed Branch
   const branch = await prisma.branch.upsert({
     where: { id: 1 },
     update: {},
     create: {
       id: 1,
       name: 'Kigali Main Branch',
-      region: 'Kigali',
+      region: 'Kigali City',
       address: 'KN 2 St, Kigali',
     },
   });
 
-  // 4. Seed New Branch Users
-  const branchUsers = [
+  // 2. Seed Users (HQ na Branch)
+  const users = [
+    {
+      email: 'admin@reg.gov.rw',
+      fullName: 'HQ Administrator',
+      password: commonPassword,
+      role: Role.HQ_ADMIN,
+      status: UserStatus.ENABLED,
+      mustChangePassword: false,
+    },
     {
       email: 'tuyisengeelysee1@gmail.com',
       fullName: 'TUYISENGE Elysée',
-      password: user1Password,
+      password: commonPassword,
       role: Role.BRANCH_USER,
       status: UserStatus.ENABLED,
-      mustChangePassword: false, // Set to 0
+      mustChangePassword: false,
       branchId: branch.id,
-    },
-    {
-      email: 'tuyisengeelysee10@gmail.com',
-      fullName: 'Ezi Skz',
-      password: user2Password,
-      role: Role.BRANCH_USER,
-      status: UserStatus.ENABLED,
-      mustChangePassword: false, // Set to 0
-      branchId: branch.id,
-    },
+    }
   ];
 
-  for (const userData of branchUsers) {
-    await prisma.user.upsert({
-      where: { email: userData.email },
-      update: {},
-      create: userData,
-    });
+  for (const u of users) {
+    await prisma.user.upsert({ where: { email: u.email }, update: {}, create: u });
   }
 
-  console.log('Admin and Branch Users seeded successfully.');
-
-  // 5. Seed Device
+  // 3. Seed Device (GRIDGuard-PI-001) - Kuzuza byose
   const device = await prisma.device.upsert({
-    where: { id: 'DEV-001' },
+    where: { id: 'GRIDGuard-PI-001' },
     update: {},
     create: {
-      id: 'DEV-001',
-      name: 'Main Entrance Camera',
+      id: 'GRIDGuard-PI-001',
+      name: 'Gasabo Station Unit',
       branchId: branch.id,
-      status: 'online',
+      status: 'ACTIVE',
       incidentStatus: 'safe',
-      lat: -1.9441,
-      lng: 30.0619,
-      address: 'Kacyiru, Gasabo, Kigali',
+      lat: -1.9500,
+      lng: 30.0588,
+      address: 'Gasabo, Kacyiru, Kigali',
       province: 'Kigali City',
       district: 'Gasabo',
       sector: 'Kacyiru',
@@ -87,45 +63,60 @@ async function main() {
     },
   });
 
-  // 6. Seed Incidents
+  // 4. Seed Technicians (Hamwe na Face Token yuzuye)
+  const technician = await prisma.technician.upsert({
+    where: { staffId: 'REG-TECH-001' },
+    update: {},
+    create: {
+      staffId: 'REG-TECH-001',
+      fullName: 'Habimana Jean',
+      email: 'jean.h@reg.gov.rw',
+      phone: '0788000000',
+      faceToken: Array.from({ length: 128 }, () => Math.random()), // Vector data
+    },
+  });
+
+  // 5. Seed Incidents (Kukurikiza ifoto neza nta NULL isigaye)
   const incidents = [
     {
-      deviceId: 'DEV-001',
-      aiClass: IncidentClass.VANDAL,
-      aiConfidence: 0.95,
-      alertStatus: true,
-      videoPath: '/uploads/incidents/videos/incident-001.mp4',
+      deviceId: 'GRIDGuard-PI-001',
+      aiClass: 'cutting',
+      aiConfidence: 96.27,
+      videoPath: 'uploads/incidents/videos/evidence-17779796635.mp4',
+      alertStatus: 'TRUE', 
+      time: new Date(),
+      status: 'ACTIVE',
+      aiSummary: 'Detection Analysis: AI detected cutting at 12:45 PM. GPS Locked.',
+      alertType: 'THIEF',
+      gps_latitude: -1.9500,
+      gps_longitude: 30.0588,
+      pirSensor: 'ACTIVE',
+      servoPosition: 90
     },
     {
-      deviceId: 'DEV-001',
-      aiClass: IncidentClass.SUSPICIOUS,
-      aiConfidence: 0.87,
-      alertStatus: false,
-      videoPath: null,
-    },
-    {
-      deviceId: 'DEV-001',
-      aiClass: IncidentClass.OPENING_BOX,
-      aiConfidence: 0.92,
-      alertStatus: true,
-      videoPath: '/uploads/incidents/videos/incident-003.mp4',
-    },
+      deviceId: 'GRIDGuard-PI-001',
+      aiClass: 'suspicious',
+      aiConfidence: 94.44,
+      videoPath: 'uploads/incidents/videos/evidence-17779795536.mp4',
+      alertStatus: 'TRUE',
+      time: new Date(),
+      status: 'ACTIVE',
+      aiSummary: 'Detection Analysis: At 1:20 PM, AI unit detected suspicious motion.',
+      alertType: 'THIEF',
+      gps_latitude: -1.9501,
+      gps_longitude: 30.0589,
+      pirSensor: 'ACTIVE',
+      servoPosition: 45
+    }
   ];
 
-  for (const incidentData of incidents) {
-    await prisma.incident.create({
-      data: incidentData,
-    });
+  for (const inc of incidents) {
+    await prisma.incident.create({ data: inc });
   }
-  
-  console.log('Devices and Incidents seeded successfully.');
+
+  console.log('✅ Seed completed: All tables are filled with data (No Empty Fields).');
 }
 
 main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+  .catch((e) => { console.error(e); process.exit(1); })
+  .finally(async () => { await prisma.$disconnect(); });
