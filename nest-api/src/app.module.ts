@@ -14,6 +14,7 @@ import { IncidentsModule } from './incidents/incidents.module';
 import { SecurityContactsModule } from './security-contacts/security-contacts.module';
 import { WhatsappModule } from './whatsapp/whatsapp.module';
 import { TechniciansModule } from './technicians/technicians.module';
+import { FirebaseModule } from './firebase/firebase.module';
 
 @Module({
   imports: [
@@ -42,7 +43,8 @@ import { TechniciansModule } from './technicians/technicians.module';
     IncidentsModule, 
     SecurityContactsModule, 
     WhatsappModule,
-    TechniciansModule
+    TechniciansModule,
+    FirebaseModule
   ],
   controllers: [AppController],
   providers: [AppService],

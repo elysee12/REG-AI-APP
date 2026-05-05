@@ -2,6 +2,9 @@ import { Outlet, createRootRoute } from "@tanstack/react-router";
 import { Toaster } from "sonner";
 import { useEffect } from "react";
 import { useAuthStore } from "@/lib/auth";
+import { messaging, getToken, onMessage } from "@/firebase";
+import { API_BASE } from "@/lib/config";
+import { toast } from "sonner";
 
 export const Route = createRootRoute({
   component: RootComponent,
@@ -36,6 +39,50 @@ function RootComponent() {
   useEffect(() => {
     if (!token) return;
 
+    // --- FCM Setup ---
+    const setupFCM = async () => {
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          const currentToken = await getToken(messaging, {
+            vapidKey: 'BLAWPWX8dLhLeSiTPgUVVL7D0YEbF9RW5DGITq4kipli6GK5KcYGbtrM6m2eUn2o2-78jdMaPA7_9t2dLh5A1fU'
+          });
+
+          if (currentToken) {
+            // Send token to backend
+            await fetch(`${API_BASE}/users/fcm-token`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({ fcmToken: currentToken })
+            });
+            console.log('FCM token updated successfully');
+          }
+        }
+      } catch (error) {
+        console.error('Error setting up FCM:', error);
+      }
+    };
+
+    setupFCM();
+
+    // Listen for foreground messages
+    const unsubscribe = onMessage(messaging, (payload) => {
+      console.log('Foreground message received:', payload);
+      
+      // Show custom toast with sound if possible
+      toast.error(payload.notification?.body || 'New Incident Detected!', {
+        title: payload.notification?.title,
+        duration: 10000,
+      });
+
+      // Play alarm sound
+      const audio = new Audio('/alarm.mp3');
+      audio.play().catch(e => console.error('Error playing alarm:', e));
+    });
+
     // Session Timeout Logic (30 minutes)
     const TIMEOUT = 30 * 60 * 1000; 
     
@@ -56,6 +103,7 @@ function RootComponent() {
     window.addEventListener("scroll", handleActivity);
 
     return () => {
+      unsubscribe();
       clearInterval(interval);
       window.removeEventListener("mousemove", handleActivity);
       window.removeEventListener("keydown", handleActivity);

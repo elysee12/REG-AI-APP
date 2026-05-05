@@ -59,4 +59,11 @@ export class UsersService {
       include: { branch: true },
     });
   }
+
+  async updateFcmToken(userId: number, fcmToken: string) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { fcmToken },
+    });
+  }
 }

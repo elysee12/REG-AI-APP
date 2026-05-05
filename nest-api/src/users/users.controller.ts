@@ -45,6 +45,14 @@ export class UsersController {
     return this.usersService.findOne(id);
   }
 
+  @Post('fcm-token')
+  async updateFcmToken(@Request() req, @Body('fcmToken') fcmToken: string) {
+    if (!fcmToken) {
+      throw new BadRequestException('FCM token is required');
+    }
+    return this.usersService.updateFcmToken(req.user.userId, fcmToken);
+  }
+
   @Patch(':id')
   @Roles('HQ_ADMIN')
   update(@Param('id', ParseIntPipe) id: number, @Body() updateUserDto: UpdateUserDto) {

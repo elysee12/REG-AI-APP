@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateIncidentDto, IncidentStatus } from './dto/create-incident.dto';
 import { MailService } from '../mail/mail.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
+import { FirebaseService } from '../firebase/firebase.service';
 
 @Injectable()
 export class IncidentsService {
@@ -12,6 +13,7 @@ export class IncidentsService {
     private prisma: PrismaService,
     private mailService: MailService,
     private whatsappService: WhatsappService,
+    private firebaseService: FirebaseService,
   ) {}
 
   async create(createIncidentDto: CreateIncidentDto) {
@@ -69,18 +71,41 @@ export class IncidentsService {
       }
     }
 
-    // Sanitize aiClass to ensure it's never an empty string
-    let sanitizedAiClass = (aiClass && String(aiClass).trim() !== '') ? aiClass : 'SUSPICIOUS';
-    
-    // If a face is matched, override the class to AUTHORIZED
+    // --- MAPPING AI CLASSES TO PRISMA ENUM ---
+    let sanitizedAiClass = 'SUSPICIOUS';
+    const rawClass = String(aiClass || '').toLowerCase().trim();
+
     if (isAuthorized) {
       sanitizedAiClass = 'AUTHORIZED_TECH';
+    } else if (rawClass.includes('cutting')) {
+      sanitizedAiClass = 'CUTTING_WIRES';
+    } else if (rawClass.includes('opening')) {
+      sanitizedAiClass = 'OPENING_BOX';
+    } else if (rawClass.includes('climbing')) {
+      sanitizedAiClass = 'CLIMBING';
+    } else if (rawClass.includes('vandal')) {
+      sanitizedAiClass = 'VANDAL';
+    } else if (rawClass === 'thief') {
+      sanitizedAiClass = 'VANDAL'; // Default to VANDAL for generic thief detection
     }
+
+    // --- SANITIZE NUMERIC FIELDS (HANDLE NaN) ---
+    const sanitizeNumber = (val: any): number | undefined => {
+      const num = Number(val);
+      return isNaN(num) ? undefined : num;
+    };
+
+    const servoPosition = sanitizeNumber(createIncidentDto.servoPosition);
+    const gpsLatitude = sanitizeNumber(createIncidentDto.gpsLatitude);
+    const gpsLongitude = sanitizeNumber(createIncidentDto.gpsLongitude);
     
     // Generate AI Summary if not provided
     const aiSummary = createIncidentDto.aiSummary || this.generateAiSummary({
       ...createIncidentDto,
-      aiClass: sanitizedAiClass as any
+      aiClass: sanitizedAiClass as any,
+      servoPosition,
+      gpsLatitude,
+      gpsLongitude
     });
 
     // --- PERMANENT DEDUPLICATION LOGIC ---
@@ -120,9 +145,9 @@ export class IncidentsService {
           videoPath: createIncidentDto.videoPath ?? existingActiveIncident.videoPath,
           alertType: createIncidentDto.alertType ?? existingActiveIncident.alertType,
           pirSensor: createIncidentDto.pirSensor ?? existingActiveIncident.pirSensor,
-          servoPosition: createIncidentDto.servoPosition ?? existingActiveIncident.servoPosition,
-          gpsLatitude: createIncidentDto.gpsLatitude ?? existingActiveIncident.gpsLatitude,
-          gpsLongitude: createIncidentDto.gpsLongitude ?? existingActiveIncident.gpsLongitude,
+          servoPosition: servoPosition ?? existingActiveIncident.servoPosition,
+          gpsLatitude: gpsLatitude ?? existingActiveIncident.gpsLatitude,
+          gpsLongitude: gpsLongitude ?? existingActiveIncident.gpsLongitude,
           aiSummary: aiSummary,
           time: now, // Update time to current to extend the 2-minute window
         },
@@ -136,6 +161,11 @@ export class IncidentsService {
         for (const contact of updatedIncident.device.securityContacts) {
           await this.mailService.sendIncidentAlertEmail(contact.email, contact.name, updatedIncident);
         }
+      }
+
+      // Trigger Push Notification for escalated incident
+      if (isEscalation && updatedIncident.alertStatus) {
+        await this.notifyBranchUsers(updatedIncident);
       }
 
       return updatedIncident;
@@ -162,9 +192,9 @@ export class IncidentsService {
         status: (createIncidentDto.status as any) || IncidentStatus.ACTIVE,
         alertType: createIncidentDto.alertType,
         pirSensor: createIncidentDto.pirSensor,
-        servoPosition: createIncidentDto.servoPosition,
-        gpsLatitude: createIncidentDto.gpsLatitude,
-        gpsLongitude: createIncidentDto.gpsLongitude,
+        servoPosition: servoPosition,
+        gpsLatitude: gpsLatitude,
+        gpsLongitude: gpsLongitude,
         aiSummary: aiSummary,
         time: now,
       },
@@ -185,7 +215,46 @@ export class IncidentsService {
       }
     }
 
+    // Trigger Push Notification for new high-priority incident
+    if (incident.alertStatus) {
+      await this.notifyBranchUsers(incident);
+    }
+
     return incident;
+  }
+
+  private async notifyBranchUsers(incident: any) {
+    try {
+      const branchId = incident.device?.branchId;
+      if (!branchId) return;
+
+      const users = await this.prisma.user.findMany({
+        where: {
+          branchId: branchId,
+          fcmToken: { not: null },
+        },
+        select: { fcmToken: true },
+      });
+
+      const tokens = users.map(u => u.fcmToken).filter((t): t is string => !!t);
+      if (tokens.length === 0) return;
+
+      const title = `🚨 ALARM: ${incident.aiClass} Detected!`;
+      const body = `Security breach at ${incident.device.name} (${incident.device.branch.name}). Check dashboard for live feed.`;
+      
+      const data = {
+        incidentId: incident.id,
+        deviceId: incident.deviceId,
+        type: 'INCIDENT_ALERT',
+        click_action: 'FLUTTER_NOTIFICATION_CLICK', // Common for mobile apps
+      };
+
+      for (const token of tokens) {
+        await this.firebaseService.sendPushNotification(token, title, body, data);
+      }
+    } catch (error) {
+      console.error('Error notifying branch users via FCM:', error);
+    }
   }
 
   private generateAiSummary(dto: CreateIncidentDto): string {
