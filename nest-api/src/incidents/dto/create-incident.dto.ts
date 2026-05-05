@@ -63,4 +63,10 @@ export class CreateIncidentDto {
   @IsString()
   @IsOptional()
   aiSummary?: string;
+
+  @IsOptional()
+  faceToken?: any;
+
+  @IsOptional()
+  capturedImage?: string;
 }

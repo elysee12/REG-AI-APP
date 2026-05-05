@@ -6,6 +6,8 @@ import { WhatsappService } from '../whatsapp/whatsapp.service';
 
 @Injectable()
 export class IncidentsService {
+  private readonly fastapiUrl = 'http://localhost:8001'; // Assuming FastAPI runs here
+
   constructor(
     private prisma: PrismaService,
     private mailService: MailService,
@@ -17,8 +19,63 @@ export class IncidentsService {
     const deviceId = createIncidentDto.deviceId;
     const now = new Date();
 
+    // --- FACE RECOGNITION AUTHORIZATION LOGIC ---
+    let isAuthorized = false;
+    let incidentFaceToken = createIncidentDto.faceToken;
+
+    // If an image is provided but no token, generate token first via FastAPI
+    if (!incidentFaceToken && createIncidentDto.capturedImage) {
+      try {
+        const tokenResponse = await fetch(`${this.fastapiUrl}/generate-face-token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: createIncidentDto.capturedImage }),
+        });
+        if (tokenResponse.ok) {
+          const tokenResult = await tokenResponse.json() as any;
+          incidentFaceToken = tokenResult.faceToken;
+        }
+      } catch (error) {
+        console.error('Error generating token for incident face:', error);
+      }
+    }
+
+    if (incidentFaceToken) {
+      try {
+        const technicians = await this.prisma.technician.findMany({
+          where: { status: 'ACTIVE' },
+          select: { faceToken: true, fullName: true, staffId: true }
+        });
+
+        // Call FastAPI to compare the incident faceToken with all technician tokens
+        const compareResponse = await fetch(`${this.fastapiUrl}/compare-faces`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            incidentToken: incidentFaceToken,
+            technicianTokens: technicians.map(t => ({ token: t.faceToken, id: t.staffId }))
+          }),
+        });
+
+        if (compareResponse.ok) {
+          const compareResult = await compareResponse.json() as any;
+          if (compareResult.match) {
+            isAuthorized = true;
+            console.log(`[IncidentsService] Face matched: Authorized action by ${compareResult.technicianId}`);
+          }
+        }
+      } catch (error) {
+        console.error('Error during face comparison:', error);
+      }
+    }
+
     // Sanitize aiClass to ensure it's never an empty string
-    const sanitizedAiClass = (aiClass && String(aiClass).trim() !== '') ? aiClass : 'SUSPICIOUS';
+    let sanitizedAiClass = (aiClass && String(aiClass).trim() !== '') ? aiClass : 'SUSPICIOUS';
+    
+    // If a face is matched, override the class to AUTHORIZED
+    if (isAuthorized) {
+      sanitizedAiClass = 'AUTHORIZED_TECH';
+    }
     
     // Generate AI Summary if not provided
     const aiSummary = createIncidentDto.aiSummary || this.generateAiSummary({
@@ -90,6 +147,8 @@ export class IncidentsService {
     if (highRiskClasses.includes(sanitizedAiClass as string)) {
       alertStatus = true;
     } else if (sanitizedAiClass === 'SUSPICIOUS') {
+      alertStatus = false;
+    } else if (sanitizedAiClass === 'AUTHORIZED_TECH') {
       alertStatus = false;
     }
 

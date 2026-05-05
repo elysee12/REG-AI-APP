@@ -26,9 +26,13 @@ export class CreateTechnicianDto {
   role: string;
 
   @IsOptional()
-  @IsString()
+  @IsOptional()
   profileImage?: string;
 
   @IsOptional()
   faceToken?: any;
+
+  @IsOptional()
+  @IsString()
+  capturedImage?: string;
 }

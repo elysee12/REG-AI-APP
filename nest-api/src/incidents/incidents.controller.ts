@@ -77,6 +77,8 @@ export class IncidentsController {
       gpsLatitude: body.gpsLatitude !== undefined ? parseFloat(body.gpsLatitude) : undefined,
       gpsLongitude: body.gpsLongitude !== undefined ? parseFloat(body.gpsLongitude) : undefined,
       aiSummary: body.aiSummary,
+      faceToken: body.faceToken ? (typeof body.faceToken === 'string' ? JSON.parse(body.faceToken) : body.faceToken) : undefined,
+      capturedImage: body.capturedImage || body.image,
     };
 
     return this.incidentsService.create(createIncidentDto);

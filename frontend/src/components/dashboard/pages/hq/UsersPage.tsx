@@ -22,7 +22,7 @@ import { toast } from "sonner";
 import { useDataStore } from "@/lib/data";
 import { useAuthStore } from "@/lib/auth";
 import { API_BASE } from "@/lib/config";
-import { User, Role, Mail, Eye, EyeOff, ShieldCheck, KeyRound } from "lucide-react";
+import { User, Role, Mail, Eye, EyeOff, ShieldCheck, KeyRound, RefreshCw } from "lucide-react";
 import { Pagination } from "../../shared/DashboardComponents";
 
 // Remove the local API_BASE constant as it's now imported from config
@@ -55,6 +55,7 @@ export function UsersPage() {
   const [editOtp, setEditOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [isEditLoading, setIsEditLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [editCooldown, setEditCooldown] = useState(0);
   const [otpExpiry, setOtpExpiry] = useState(0);
 
@@ -195,12 +196,17 @@ export function UsersPage() {
       // This is now handled by separate buttons, but we keep it for fallback or if user hits Enter
       handleUpdateProfile(e);
     } else {
-      const success = await addUser({ ...formData, status: "enabled", mustChangePassword: true });
-      if (success) {
-        toast.success(`User created. Default password: ${(formData.branchName || 'Reg').split(' ')[0]}@2026`);
-        setIsDialogOpen(false);
-      } else {
-        toast.error("Failed to create user. Please check if the email already exists.");
+      setIsSubmitting(true);
+      try {
+        const success = await addUser({ ...formData, status: "enabled", mustChangePassword: true });
+        if (success) {
+          toast.success(`User created. Default password: ${(formData.branchName || 'Reg').split(' ')[0]}@2026`);
+          setIsDialogOpen(false);
+        } else {
+          toast.error("Failed to create user. Please check if the email already exists.");
+        }
+      } finally {
+        setIsSubmitting(false);
       }
     }
   };
@@ -615,8 +621,19 @@ export function UsersPage() {
 
             <DialogFooter className="pt-2">
               {!editingUser && (
-                <Button type="submit" disabled={isEditLoading} className="w-full sm:w-auto">
-                  {isEditLoading ? "Processing..." : "Create User"}
+                <Button 
+                  type="submit" 
+                  disabled={isSubmitting} 
+                  className={`w-full sm:w-auto transition-all duration-300 ${isSubmitting ? "bg-amber-500 hover:bg-amber-600 text-white gap-2" : ""}`}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      Creating User...
+                    </>
+                  ) : (
+                    "Create User"
+                  )}
                 </Button>
               )}
             </DialogFooter>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useDataStore, Technician } from "@/lib/data";
-import { User as UserIcon, Mail, Phone, ShieldCheck, Briefcase, Plus, Search, Trash2, Edit2, Building2, AlertTriangle, Upload, X } from "lucide-react";
+import { User as UserIcon, Mail, Phone, ShieldCheck, Briefcase, Plus, Search, Trash2, Edit2, Building2, AlertTriangle, Upload, X, Camera as CameraIcon, RefreshCw } from "lucide-react";
 import { Pagination, SeverityPill } from "../../shared/DashboardComponents";
 import { BASE_URL } from "@/lib/config";
 
@@ -36,6 +36,9 @@ export function TechniciansPage() {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [technicianToDelete, setTechnicianToDelete] = useState<Technician | null>(null);
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
+
   const [formData, setFormData] = useState({
     staffId: "",
     fullName: "",
@@ -46,8 +49,48 @@ export function TechniciansPage() {
   });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [showCamera, setShowCamera] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const MAX_PROFILE_IMAGE_BYTES = 10 * 1024 * 1024; // 10MB
+
+  useEffect(() => {
+    if (showCamera && videoRef.current) {
+      navigator.mediaDevices.getUserMedia({ video: { width: 400, height: 400 } })
+        .then(stream => {
+          if (videoRef.current) videoRef.current.srcObject = stream;
+        })
+        .catch(err => {
+          console.error("Camera error:", err);
+          toast.error("Could not access camera");
+          setShowCamera(false);
+        });
+    }
+    return () => {
+      if (videoRef.current?.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream;
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [showCamera]);
+
+  const handleCapture = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg');
+      setCapturedImage(dataUrl);
+      setPreviewUrl(dataUrl);
+      setSelectedFile(null);
+      setShowCamera(false);
+    }
+  };
 
   useEffect(() => {
     fetchTechnicians();
@@ -129,6 +172,8 @@ export function TechniciansPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
+    setStatusMessage("Processing captured image for face token...");
     
     const data = new FormData();
     data.append("staffId", formData.staffId);
@@ -139,29 +184,37 @@ export function TechniciansPage() {
     data.append("branchId", formData.branchId);
     if (selectedFile) {
       data.append("image", selectedFile);
+    } else if (capturedImage) {
+      data.append("capturedImage", capturedImage);
     }
 
     if (fileError) {
       toast.error(fileError);
+      setIsSubmitting(false);
       return;
     }
 
-    if (editingTechnician) {
-      const result = await updateTechnician(editingTechnician.id, data);
-      if (result.success) {
-        toast.success("Technician updated successfully");
-        setIsDialogOpen(false);
+    try {
+      if (editingTechnician) {
+        const result = await updateTechnician(editingTechnician.id, data);
+        if (result.success) {
+          toast.success("Technician updated successfully");
+          setIsDialogOpen(false);
+        } else {
+          toast.error(result.message || "Failed to update technician. Please check the image and try again.");
+        }
       } else {
-        toast.error(result.message || "Failed to update technician. Please check the image and try again.");
+        const result = await addTechnician(data);
+        if (result.success) {
+          toast.success("Technician added successfully");
+          setIsDialogOpen(false);
+        } else {
+          toast.error(result.message || "Failed to add technician. Please check the form and try again.");
+        }
       }
-    } else {
-      const result = await addTechnician(data);
-      if (result.success) {
-        toast.success("Technician added successfully");
-        setIsDialogOpen(false);
-      } else {
-        toast.error(result.message || "Failed to add technician. Please check the form and try again.");
-      }
+    } finally {
+      setIsSubmitting(false);
+      setStatusMessage("");
     }
   };
 
@@ -298,42 +351,112 @@ export function TechniciansPage() {
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 py-4">
-            {/* Profile Image Upload */}
+            {/* Profile Image / Camera Capture */}
             <div className="flex flex-col items-center gap-4 mb-4">
               <div className="relative group">
-                <div className="h-24 w-24 rounded-2xl bg-secondary border-2 border-dashed border-border flex items-center justify-center overflow-hidden group-hover:border-primary/50 transition-colors">
-                  {previewUrl ? (
+                <div className="h-32 w-32 rounded-full bg-secondary/50 border-2 border-dashed border-border flex items-center justify-center overflow-hidden shadow-inner relative">
+                  {showCamera ? (
+                    <video 
+                      ref={videoRef} 
+                      autoPlay 
+                      playsInline 
+                      className="h-full w-full object-cover"
+                    />
+                  ) : previewUrl ? (
                     <img src={previewUrl} alt="Preview" className="h-full w-full object-cover" />
                   ) : (
-                    <div className="flex flex-col items-center text-muted-foreground">
-                      <Upload className="h-8 w-8 mb-1" />
-                      <span className="text-[10px] font-medium">Upload Photo</span>
+                    <div className="text-center p-4">
+                      <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-1" />
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">Photo Required</span>
                     </div>
                   )}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileChange}
-                    className="absolute inset-0 opacity-0 cursor-pointer"
-                  />
+                  
+                  {/* Camera overlay button */}
+                  {!showCamera && (
+                    <button
+                      type="button"
+                      onClick={() => setShowCamera(true)}
+                      className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white"
+                    >
+                      <CameraIcon className="h-6 w-6 mb-1" />
+                      <span className="text-[10px] font-black uppercase tracking-widest">Open Cam</span>
+                    </button>
+                  )}
                 </div>
-                {previewUrl && (
+                
+                {previewUrl && !showCamera && (
                   <Button
                     type="button"
                     variant="destructive"
                     size="icon"
-                    className="absolute -top-2 -right-2 h-6 w-6 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute -top-2 -right-2 h-6 w-6 rounded-full shadow-lg"
                     onClick={() => {
-                      setSelectedFile(null);
                       setPreviewUrl(null);
+                      setSelectedFile(null);
+                      setCapturedImage(null);
                     }}
                   >
                     <X className="h-3 w-3" />
                   </Button>
                 )}
               </div>
-              <p className="text-[10px] text-muted-foreground">JPG, PNG or WEBP. Max 10MB.</p>
-              {fileError && <p className="text-[10px] text-destructive mt-1">{fileError}</p>}
+
+              {showCamera ? (
+                <div className="flex gap-2">
+                  <Button type="button" onClick={handleCapture} className="gap-2 bg-primary">
+                    <CameraIcon className="h-4 w-4" /> Capture Photo
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => setShowCamera(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-2">
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 h-9 text-[11px] font-bold uppercase tracking-wider"
+                      onClick={() => document.getElementById('image-upload')?.click()}
+                    >
+                      <Upload className="h-3.5 w-3.5" /> Upload Image
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 h-9 text-[11px] font-bold uppercase tracking-wider text-primary border-primary/20 hover:bg-primary/5"
+                      onClick={() => setShowCamera(true)}
+                    >
+                      <CameraIcon className="h-3.5 w-3.5" /> Web Camera
+                    </Button>
+                  </div>
+                  <input
+                    id="image-upload"
+                    type="file"
+                    className="hidden"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        if (file.size > MAX_PROFILE_IMAGE_BYTES) {
+                          setFileError("File is too large (Max 10MB)");
+                          return;
+                        }
+                        setSelectedFile(file);
+                        setCapturedImage(null);
+                        setFileError(null);
+                        const reader = new FileReader();
+                        reader.onloadend = () => setPreviewUrl(reader.result as string);
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                  />
+                  <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest">AI Face Recognition Required</p>
+                </div>
+              )}
+              <canvas ref={canvasRef} className="hidden" />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -417,8 +540,21 @@ export function TechniciansPage() {
               </div>
             </div>
             <DialogFooter className="pt-4">
-              <Button type="button" variant="ghost" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-              <Button type="submit">{editingTechnician ? "Save Changes" : "Register Technician"}</Button>
+              <Button type="button" variant="ghost" onClick={() => setIsDialogOpen(false)} disabled={isSubmitting}>Cancel</Button>
+              <Button 
+                type="submit" 
+                disabled={isSubmitting}
+                className={isSubmitting ? "bg-amber-500 hover:bg-amber-600 text-white gap-2 transition-all duration-300" : ""}
+              >
+                {isSubmitting ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    {statusMessage}
+                  </>
+                ) : (
+                  editingTechnician ? "Save Changes" : "Register Technician"
+                )}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>

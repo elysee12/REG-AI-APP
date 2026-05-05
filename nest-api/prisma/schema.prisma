@@ -103,7 +103,7 @@ model Incident {
    deviceId        String 
  
    // AI Results
-   aiClass         String?   @default("SUSPICIOUS")
+   aiClass         IncidentClass? @default(SUSPICIOUS)
    aiConfidence    Float?    // e.g., 0.98
    alertType       String?   // e.g., "THREAT"
    
@@ -121,7 +121,7 @@ model Incident {
    aiSummary       String?   @db.Text
 
    // Workflow Status
-   status          String    @default("ACTIVE")
+   status          IncidentStatus @default(ACTIVE)
 
    // Timestamp
    time            DateTime @default(now()) 
@@ -138,6 +138,7 @@ enum IncidentClass {
   CUTTING_WIRES
   OPENING_BOX
   SUSPICIOUS
+  AUTHORIZED_TECH
   @@map("incident_class")
 }
 

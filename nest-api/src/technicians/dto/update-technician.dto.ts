@@ -37,4 +37,8 @@ export class UpdateTechnicianDto {
   @IsOptional()
   @IsString()
   status?: string;
+
+  @IsOptional()
+  @IsString()
+  capturedImage?: string;
 }
