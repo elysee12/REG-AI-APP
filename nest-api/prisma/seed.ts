@@ -63,20 +63,6 @@ async function main() {
     },
   });
 
-  // 4. Seed Technicians (IKOSOYE: Added branch relation & correct types)
-  const technician = await prisma.technician.upsert({
-    where: { staffId: 'REG-TECH-001' },
-    update: {},
-    create: {
-      staffId: 'REG-TECH-001',
-      fullName: 'Habimana Jean',
-      email: 'jean.h@reg.gov.rw',
-      phone: '0788000000',
-      faceToken: Array.from({ length: 128 }, () => Math.random()),
-      branchId: branch.id, // Bihambire kuri branch kugira ngo error ishire
-    },
-  });
-
   // 5. Seed Incidents (IKOSOYE: Fixed aiClass Enum and alertStatus boolean/string)
   const incidents = [
     {
