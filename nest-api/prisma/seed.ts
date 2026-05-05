@@ -18,7 +18,7 @@ async function main() {
     },
   });
 
-  // 2. Seed Users (HQ na Branch)
+  // 2. Seed Users
   const users = [
     {
       email: 'admin@reg.gov.rw',
@@ -43,7 +43,7 @@ async function main() {
     await prisma.user.upsert({ where: { email: u.email }, update: {}, create: u });
   }
 
-  // 3. Seed Device (GRIDGuard-PI-001) - Kuzuza byose
+  // 3. Seed Device
   const device = await prisma.device.upsert({
     where: { id: 'GRIDGuard-PI-001' },
     update: {},
@@ -63,7 +63,7 @@ async function main() {
     },
   });
 
-  // 4. Seed Technicians (Hamwe na Face Token yuzuye)
+  // 4. Seed Technicians (IKOSOYE: Added branch relation & correct types)
   const technician = await prisma.technician.upsert({
     where: { staffId: 'REG-TECH-001' },
     update: {},
@@ -72,21 +72,22 @@ async function main() {
       fullName: 'Habimana Jean',
       email: 'jean.h@reg.gov.rw',
       phone: '0788000000',
-      faceToken: Array.from({ length: 128 }, () => Math.random()), // Vector data
+      faceToken: Array.from({ length: 128 }, () => Math.random()),
+      branchId: branch.id, // Bihambire kuri branch kugira ngo error ishire
     },
   });
 
-  // 5. Seed Incidents (Kukurikiza ifoto neza nta NULL isigaye)
+  // 5. Seed Incidents (IKOSOYE: Fixed aiClass Enum and alertStatus boolean/string)
   const incidents = [
     {
       deviceId: 'GRIDGuard-PI-001',
-      aiClass: 'cutting',
+      aiClass: IncidentClass.VANDAL, // Koresha Enum aho kuba string 'cutting'
       aiConfidence: 96.27,
-      videoPath: 'uploads/incidents/videos/evidence-17779796635.mp4',
-      alertStatus: 'TRUE', 
+      videoPath: 'uploads/incidents/videos/evidence-1.mp4',
+      alertStatus: true, // Niba ari boolean muri schema, koresha true aho kuba 'TRUE'
       time: new Date(),
       status: 'ACTIVE',
-      aiSummary: 'Detection Analysis: AI detected cutting at 12:45 PM. GPS Locked.',
+      aiSummary: 'Detection Analysis: AI detected cutting at 12:45 PM.',
       alertType: 'THIEF',
       gps_latitude: -1.9500,
       gps_longitude: 30.0588,
@@ -95,13 +96,13 @@ async function main() {
     },
     {
       deviceId: 'GRIDGuard-PI-001',
-      aiClass: 'suspicious',
+      aiClass: IncidentClass.SUSPICIOUS, // Koresha Enum
       aiConfidence: 94.44,
-      videoPath: 'uploads/incidents/videos/evidence-17779795536.mp4',
-      alertStatus: 'TRUE',
+      videoPath: 'uploads/incidents/videos/evidence-2.mp4',
+      alertStatus: true,
       time: new Date(),
       status: 'ACTIVE',
-      aiSummary: 'Detection Analysis: At 1:20 PM, AI unit detected suspicious motion.',
+      aiSummary: 'Detection Analysis: AI unit detected suspicious motion.',
       alertType: 'THIEF',
       gps_latitude: -1.9501,
       gps_longitude: 30.0589,
@@ -114,7 +115,7 @@ async function main() {
     await prisma.incident.create({ data: inc });
   }
 
-  console.log('✅ Seed completed: All tables are filled with data (No Empty Fields).');
+  console.log('✅ Seed completed successfully!');
 }
 
 main()
