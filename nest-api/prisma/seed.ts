@@ -1,4 +1,4 @@
-import { PrismaClient, Role, UserStatus, IncidentClass } from '@prisma/client';
+import { PrismaClient, Role, UserStatus, IncidentClass, IncidentStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -72,11 +72,11 @@ async function main() {
       videoPath: 'uploads/incidents/videos/evidence-1.mp4',
       alertStatus: true, // Niba ari boolean muri schema, koresha true aho kuba 'TRUE'
       time: new Date(),
-      status: 'ACTIVE',
+      status: IncidentStatus.ACTIVE,
       aiSummary: 'Detection Analysis: AI detected cutting at 12:45 PM.',
       alertType: 'THIEF',
-      gps_latitude: -1.9500,
-      gps_longitude: 30.0588,
+      gpsLatitude: -1.9500,
+      gpsLongitude: 30.0588,
       pirSensor: 'ACTIVE',
       servoPosition: 90
     },
@@ -87,11 +87,11 @@ async function main() {
       videoPath: 'uploads/incidents/videos/evidence-2.mp4',
       alertStatus: true,
       time: new Date(),
-      status: 'ACTIVE',
+      status: IncidentStatus.ACTIVE,
       aiSummary: 'Detection Analysis: AI unit detected suspicious motion.',
       alertType: 'THIEF',
-      gps_latitude: -1.9501,
-      gps_longitude: 30.0589,
+      gpsLatitude: -1.9501,
+      gpsLongitude: 30.0589,
       pirSensor: 'ACTIVE',
       servoPosition: 45
     }
