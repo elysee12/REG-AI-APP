@@ -40,7 +40,7 @@ The Control Room has *VERIFIED* a *${data.aiClass || 'CRITICAL'}* activity in pr
 *Incident Details:*
 *Ticket ID:* ${data.ticketId}
 *Classification:* ${data.aiClass || 'AI Detection'}
-*Confidence:* ${data.aiConfidence ? Math.round(data.aiConfidence * 100) : '95'}%
+*Confidence:* ${data.aiConfidence ? Math.round(data.aiConfidence) : '95'}%
 *Unit ID:* ${data.device?.id || 'Unknown'}
 *Site:* ${data.device?.district || 'Unknown'} Station Area
 
@@ -305,7 +305,7 @@ https://www.google.com/maps?q=${data.device?.lat || '0'},${data.device?.lng || '
         <h2 className="font-bold flex items-center gap-2 mb-4 text-foreground tracking-tight"><Bell className="h-4 w-4 text-primary" />Incident Timeline</h2>
         <div className="relative border-l-2 border-primary/20 ml-2 space-y-6 pl-6 pb-2">
           {[
-            { t: new Date(incident.time).toLocaleTimeString(), title: `Detection: ${incident.ticketId}`, who: "AI Unit", desc: `AI Unit ${incident.device.id} classified as ${incident.aiClass || incident.type} (${incident.aiConfidence ? Math.round(incident.aiConfidence * 100) : '95'}% confidence).` },
+            { t: new Date(incident.time).toLocaleTimeString(), title: `Detection: ${incident.ticketId}`, who: "AI Unit", desc: `AI Unit ${incident.device.id} classified as ${incident.aiClass || incident.type} (${incident.aiConfidence ? Math.round(incident.aiConfidence) : '95'}% confidence).` },
             { t: new Date(incident.time).toLocaleTimeString(), title: "Dispatch triggered", who: "System", desc: `Automated protocols engaged. Alerts dispatched to ${incident.device.district} responders.` },
           ].map((e, i) => (
             <div key={i} className="relative">
@@ -330,7 +330,7 @@ https://www.google.com/maps?q=${data.device?.lat || '0'},${data.device?.lng || '
                 <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Contextual Summary</span>
               </div>
               <p className="text-xs text-slate-200 leading-relaxed font-medium">
-                {incident.aiSummary || `AI Unit identified ${incident.aiClass || 'suspicious'} behavior with ${incident.aiConfidence ? Math.round(incident.aiConfidence * 100) : '95'}% confidence at ${incident.device.district} Station.`}
+                {incident.aiSummary || `AI Unit identified ${incident.aiClass || 'suspicious'} behavior with ${incident.aiConfidence ? Math.round(incident.aiConfidence) : '95'}% confidence at ${incident.device.district} Station.`}
               </p>
             </div>
 
@@ -344,7 +344,7 @@ https://www.google.com/maps?q=${data.device?.lat || '0'},${data.device?.lng || '
               <div className="p-3 rounded-xl bg-secondary/30 border border-border">
                 <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">Confidence Score</span>
                 <span className="text-xs font-bold text-primary">
-                  {incident.aiConfidence ? `${(incident.aiConfidence * 100).toFixed(1)}%` : '95%'}
+                  {incident.aiConfidence ? `${Math.round(incident.aiConfidence)}%` : '95%'}
                 </span>
               </div>
               <div className="p-3 rounded-xl bg-secondary/30 border border-border">

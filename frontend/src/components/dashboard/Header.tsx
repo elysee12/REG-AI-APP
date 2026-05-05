@@ -400,7 +400,7 @@ export function Header({ title }: HeaderProps) {
       .filter((incident) => {
         // HQ Admin: Show all significant incidents from all devices
         if (user?.role === "HQ_ADMIN") {
-          return incident.alertStatus === true || incident.aiConfidence >= 0.8;
+          return incident.alertStatus === true || incident.aiConfidence >= 80;
         }
         
         return incident.alertStatus === true && isIncidentAssignedOrBranch(incident);

@@ -148,7 +148,7 @@ export function IncidentsPage() {
             <div class="label">Alert Status:</div> ${selectedIncident.aiClass || (selectedIncident.alertStatus ? 'CRITICAL' : 'SUSPICIOUS')}
           </div>
           <div class="section">
-            <div class="label">Confidence:</div> ${Math.round((selectedIncident.aiConfidence || 0) * 100)}%
+            <div class="label">Confidence:</div> ${Math.round(selectedIncident.aiConfidence || 0)}%
           </div>
           <div class="section">
             <div class="label">Time Detected:</div> ${formatTime(selectedIncident.time)}
@@ -271,7 +271,7 @@ export function IncidentsPage() {
               
               <div className="mt-6 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-x-4 gap-y-4 border-t border-primary/10 pt-4">
                 <Meta label="Detection time" value={formatTime(selectedIncident.time)} />
-                <Meta label="AI Confidence" value={`${Math.round((selectedIncident.aiConfidence || 0) * 100)}%`} />
+                <Meta label="AI Confidence" value={`${Math.round(selectedIncident.aiConfidence || 0)}%`} />
                 <Meta label="Device ID" value={selectedIncident.deviceId} />
                 <Meta 
                   label="GPS Coordinates" 
@@ -302,11 +302,15 @@ export function IncidentsPage() {
               <div className="aspect-video rounded-xl bg-sidebar relative overflow-hidden border border-border shadow-inner">
                 {activeTab === "Camera Live" && (
                   <>
-                    <iframe 
+                    <img 
                       src={streamUrl} 
-                      className="absolute inset-0 w-full h-full border-0"
-                      allow="autoplay; encrypted-media"
-                      title="Camera Live Stream"
+                      className="absolute inset-0 w-full h-full object-cover"
+                      alt="Camera Live Stream"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.onerror = null; // Prevent infinite loop
+                        target.src = "https://images.unsplash.com/photo-1557597774-9d2739f05a76?q=80&w=2070&auto=format&fit=crop";
+                      }}
                     />
                     <div className="absolute top-3 left-3 inline-flex items-center gap-2 px-2 py-1 rounded bg-primary text-primary-foreground text-[10px] font-black uppercase tracking-widest shadow-lg">
                       <span className="h-2 w-2 rounded-full bg-white animate-pulse" /> LIVE · {selectedIncident.deviceId}
@@ -424,7 +428,7 @@ export function IncidentsPage() {
                               <span className="font-bold text-primary block text-xs uppercase tracking-wider mb-1">Contextual Factors</span>
                               <p className="text-lg">
                                 Pattern matches <span className="font-bold text-primary">{selectedIncident.aiClass || (selectedIncident.alertStatus ? 'CRITICAL' : 'SUSPICIOUS')}</span> signatures 
-                                with <span className="text-primary font-bold px-1.5 py-0.5 rounded bg-primary/10">{Math.round((selectedIncident.aiConfidence || 0) * 100)}% confidence</span>.
+                                with <span className="text-primary font-bold px-1.5 py-0.5 rounded bg-primary/10">{Math.round(selectedIncident.aiConfidence || 0)}% confidence</span>.
                               </p>
                             </div>
                           </div>
@@ -434,7 +438,7 @@ export function IncidentsPage() {
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         <SummaryStat label="Alert Type" value={selectedIncident.alertType || (selectedIncident.alertStatus ? "THIEF" : "SUSPICIOUS")} color="text-primary" />
                         <SummaryStat label="Detection" value={selectedIncident.aiClass || "Unknown"} color="text-slate-200" />
-                        <SummaryStat label="Confidence" value={`${Math.round((selectedIncident.aiConfidence || 0) * 100)}%`} color="text-primary" />
+                        <SummaryStat label="Confidence" value={`${Math.round(selectedIncident.aiConfidence || 0)}%`} color="text-primary" />
                         <SummaryStat label="PIR Status" value={selectedIncident.pirSensor ? `Active (${selectedIncident.pirSensor})` : "Active"} color="text-slate-200" />
                       </div>
 

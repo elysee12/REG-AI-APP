@@ -220,10 +220,10 @@ export function QueuePage() {
                     <td className="px-4 py-3">
                       {r.aiConfidence ? (
                         <span className={`text-xs font-bold ${
-                          r.aiConfidence >= 0.8 ? 'text-primary' : 
-                          r.aiConfidence >= 0.5 ? 'text-warning' : 'text-muted-foreground'
+                          r.aiConfidence >= 80 ? 'text-primary' : 
+                          r.aiConfidence >= 50 ? 'text-warning' : 'text-muted-foreground'
                         }`}>
-                          {(r.aiConfidence * 100).toFixed(0)}%
+                          {Math.round(r.aiConfidence)}%
                         </span>
                       ) : (
                         <span className="text-xs text-muted-foreground">-</span>

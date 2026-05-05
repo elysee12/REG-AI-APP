@@ -15,14 +15,17 @@ export class MailService {
       host: host,
       port: port,
       secure: port === 465, // true for 465, false for other ports
+      pool: true, // Use connection pooling
+      maxConnections: 5,
+      maxMessages: 100,
       auth: {
         user: process.env.SMTP_USER || '',
         pass: process.env.SMTP_PASS || '',
       },
       // Cloud environment fixes
-      connectionTimeout: 15000,
-      greetingTimeout: 15000,
-      socketTimeout: 20000,
+      connectionTimeout: 20000,
+      greetingTimeout: 20000,
+      socketTimeout: 30000,
       dnsTimeout: 10000,
       tls: {
         rejectUnauthorized: false,
@@ -177,7 +180,7 @@ export class MailService {
           </tr>
           <tr>
             <td style="padding: 4px 0; color: #444444; font-size: 14px;"><strong>Confidence:</strong></td>
-            <td style="padding: 4px 0; color: #444444; font-size: 14px; text-align: right;">${incident.aiConfidence ? Math.round(incident.aiConfidence * 100) : '95'}%</td>
+            <td style="padding: 4px 0; color: #444444; font-size: 14px; text-align: right;">${incident.aiConfidence ? Math.round(incident.aiConfidence) : '95'}%</td>
           </tr>
           <tr>
             <td style="padding: 4px 0; color: #444444; font-size: 14px;"><strong>Verification Time:</strong></td>
